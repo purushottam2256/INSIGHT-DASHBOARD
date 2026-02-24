@@ -1,0 +1,342 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   INSIGHT DASHBOARD — Premium Orange Theme
+   
+   Design Philosophy:
+   - Orange as the ONLY primary color
+   - Warm-tinted neutrals (cream/sand for light, warm-dark for dark)
+   - No cool grays or pure blacks — everything has a slight warm undertone
+   ============================================================================ */
+
+@layer base {
+  :root {
+    /* ── Backgrounds ── */
+    --background: 40 20% 98%; /* #FAFAF6 — warm white */
+    --foreground: 30 10% 10%; /* #1B1917 — warm near-black */
+
+    /* ── Cards & Surfaces ── */
+    --card: 40 30% 99%; /* #FEFDFB — crisp warm white */
+    --card-foreground: 30 10% 10%;
+
+    /* ── Primary (Orange) ── */
+    --primary: 28 90% 48%; /* #E8730C — rich burnt orange */
+    --primary-foreground: 0 0% 100%; /* white text on primary */
+
+    /* ── Secondary (Warm Sand) ── */
+    --secondary: 30 25% 95%; /* #F5F0EB — warm sand */
+    --secondary-foreground: 30 10% 20%;
+
+    /* ── Muted (Cream) ── */
+    --muted: 30 20% 93%; /* #EEEBE5 — soft cream */
+    --muted-foreground: 25 8% 45%; /* warm gray text */
+
+    /* ── Accent (Peach Highlight) ── */
+    --accent: 33 100% 95%; /* #FFF3E0 — light peach */
+    --accent-foreground: 28 90% 30%;
+
+    /* ── Popover ── */
+    --popover: 40 30% 99%;
+    --popover-foreground: 30 10% 10%;
+
+    /* ── Borders & Inputs ── */
+    --border: 30 18% 88%; /* #E3DCD4 — warm border */
+    --input: 30 18% 88%;
+    --ring: 28 90% 48%; /* matches primary */
+
+    /* ── Destructive ── */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Layout ── */
+    --radius: 0.75rem;
+
+    /* ── Chart Colors (Orange Palette) ── */
+    --chart-1: 28 90% 48%; /* primary orange */
+    --chart-2: 36 100% 50%; /* amber */
+    --chart-3: 20 90% 40%; /* dark orange */
+    --chart-4: 45 93% 47%; /* golden yellow */
+    --chart-5: 0 72% 51%; /* red (destructive) */
+  }
+
+  .dark {
+    /* ── Backgrounds (Warm Black) ── */
+    --background: 30 8% 6%; /* #0F0E0D — warm near-black */
+    --foreground: 35 15% 95%; /* #F5F2ED — warm off-white */
+
+    /* ── Cards & Surfaces ── */
+    --card: 30 8% 9%; /* #18160F — warm dark surface */
+    --card-foreground: 35 15% 95%;
+
+    /* ── Primary (Amber-Orange for dark) ── */
+    --primary: 33 95% 55%; /* #F59E0B — vibrant amber */
+    --primary-foreground: 30 8% 6%; /* dark text on amber */
+
+    /* ── Secondary (Warm Dark) ── */
+    --secondary: 30 10% 14%; /* #262420 — warm dark gray */
+    --secondary-foreground: 35 15% 85%;
+
+    /* ── Muted (Dark Warm) ── */
+    --muted: 30 8% 12%; /* #1F1D1A — dark warm */
+    --muted-foreground: 30 10% 55%;
+
+    /* ── Accent (Dark Amber Tint) ── */
+    --accent: 30 20% 12%; /* #221E16 — dark amber tint */
+    --accent-foreground: 33 95% 55%;
+
+    /* ── Popover ── */
+    --popover: 30 8% 9%;
+    --popover-foreground: 35 15% 95%;
+
+    /* ── Borders & Inputs ── */
+    --border: 30 10% 18%; /* #302B24 — warm dark border */
+    --input: 30 10% 18%;
+    --ring: 33 95% 55%; /* amber ring */
+
+    /* ── Destructive ── */
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Chart Colors (Amber Palette for dark) ── */
+    --chart-1: 33 95% 55%;
+    --chart-2: 28 90% 48%;
+    --chart-3: 45 93% 47%;
+    --chart-4: 20 90% 40%;
+    --chart-5: 0 62% 55%;
+  }
+}
+
+/* ============================================================================
+   BASE STYLES
+   ============================================================================ */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Selection color (orange tint) */
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+/* ============================================================================
+   SCROLLBAR STYLES
+   ============================================================================ */
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.2);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+  }
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.15);
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted-foreground) / 0.08) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-fade-in-delay-1 {
+  animation-delay: 0.1s;
+  opacity: 0;
+}
+.animate-fade-in-delay-2 {
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+.animate-fade-in-delay-3 {
+  animation-delay: 0.3s;
+  opacity: 0;
+}
+.animate-fade-in-delay-4 {
+  animation-delay: 0.4s;
+  opacity: 0;
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.4s ease-out forwards;
+}
+
+/* ============================================================================
+   BACKGROUND ANIMATIONS (Dashboard Shell)
+   ============================================================================ */
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate(0px, 0px);
+  }
+  25% {
+    transform: translate(15px, -20px);
+  }
+  50% {
+    transform: translate(-10px, 10px);
+  }
+  75% {
+    transform: translate(20px, 15px);
+  }
+}
+
+@keyframes float-reverse {
+  0%,
+  100% {
+    transform: translate(0px, 0px);
+  }
+  25% {
+    transform: translate(-15px, 15px);
+  }
+  50% {
+    transform: translate(20px, -10px);
+  }
+  75% {
+    transform: translate(-10px, -20px);
+  }
+}
+
+@keyframes spin-very-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-very-slow-reverse {
+  from {
+    transform: rotate(360deg) translate(30px, 30px);
+  }
+  to {
+    transform: rotate(0deg) translate(30px, 30px);
+  }
+}
+
+@keyframes pulse-glow-bg {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes shimmer-line {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-float-slow {
+  animation: float-slow 20s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 25s ease-in-out infinite;
+}
+
+.animate-spin-very-slow {
+  animation: spin-very-slow 60s linear infinite;
+}
+
+.animate-spin-very-slow-reverse {
+  animation: spin-very-slow-reverse 45s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow-bg 4s ease-in-out infinite;
+}
+
+.animate-shimmer-line {
+  animation: shimmer-line 6s ease-in-out infinite;
+}
