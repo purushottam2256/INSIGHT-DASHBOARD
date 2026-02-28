@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { AcademicEvent } from '@/types/dashboard';
 import { format, isToday, isTomorrow } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 interface UpcomingEventsProps {
     events: AcademicEvent[];
@@ -17,6 +18,8 @@ const typeConfig = {
 };
 
 const UpcomingEvents = ({ events }: UpcomingEventsProps) => {
+  const navigate = useNavigate();
+
   return (
     <Card className="h-full border-border/50 shadow-xl flex flex-col overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30 transition-all hover:shadow-2xl">
         <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
@@ -26,7 +29,7 @@ const UpcomingEvents = ({ events }: UpcomingEventsProps) => {
                 </div>
                 Holidays & Events
             </CardTitle>
-             <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-muted-foreground hover:text-primary">
+             <Button variant="ghost" size="sm" onClick={() => navigate('/calendar')} className="text-xs h-7 gap-1 text-muted-foreground hover:text-primary">
                 View All <ArrowRight size={12} />
             </Button>
         </CardHeader>

@@ -17,7 +17,7 @@ interface DashboardFilters {
     period?: string | null;
     dept?: string | null;
     batch?: string | null;
-    timeframe?: 'day' | 'week' | 'month';
+    timeframe?: 'day' | 'week' | 'month' | 'semester';
     groupBy?: 'time' | 'class';
 }
 
@@ -53,9 +53,23 @@ export const useDashboardData = (filters?: DashboardFilters) => {
 
                 const todayStr = new Date().toISOString().split('T')[0];
 
-                // 2. Leave Requests
-                const { data: leaves } = await supabase.from('leaves').select('*, profiles(full_name, avatar_url)').eq('status', 'pending').limit(5);
-                setLeaveRequests((leaves as any) || []);
+                // 2. Leave Requests (Client-side join to avoid 400 Bad Request on foreign key failure)
+                const { data: rawLeaves } = await supabase.from('leaves').select('*').eq('status', 'pending').limit(5);
+                let dashboardLeaves: LeaveRequest[] = []
+
+                if (rawLeaves && rawLeaves.length > 0) {
+                     const userIds = rawLeaves.map(l => l.user_id)
+                     const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', userIds)
+                     
+                     dashboardLeaves = rawLeaves.map(leave => {
+                          const prof = profs?.find(p => p.id === leave.user_id)
+                          return {
+                              ...leave,
+                              profiles: { full_name: prof?.full_name || 'Unknown Faculty' }
+                          }
+                     }) as LeaveRequest[]
+                }
+                setLeaveRequests(dashboardLeaves);
 
                 // 3. OD Students (active today)
                 const { data: ods, error: odError } = await supabase
@@ -86,7 +100,7 @@ export const useDashboardData = (filters?: DashboardFilters) => {
                 }
 
                 // 5. Upcoming Events
-                const { data: events } = await supabase.from('academic_calendar').select('*').gte('date', todayStr).order('date', { ascending: true }).limit(5);
+                const { data: events } = await supabase.from('holidays').select('*').gte('date', todayStr).order('date', { ascending: true }).limit(5);
                 setUpcomingEvents(events as AcademicEvent[] || []);
 
                 // 6. Analytics Stats - DYNAMIC FILTERING & AGGREGATION
@@ -104,6 +118,10 @@ export const useDashboardData = (filters?: DashboardFilters) => {
                     endDate.setDate(startDate.getDate() + 6);
                 } else if (filters?.timeframe === 'month') {
                     startDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+                    endDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+                } else if (filters?.timeframe === 'semester') {
+                    // Go back ~6 months for semester view
+                    startDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 5, 1);
                     endDate = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
                 }
 
@@ -151,6 +169,8 @@ export const useDashboardData = (filters?: DashboardFilters) => {
                         key = `Week ${weekNum}`;
                     } else if (filters?.timeframe === 'week') {
                          key = format(new Date(s.date), 'EEE'); 
+                    } else if (filters?.timeframe === 'semester') {
+                         key = format(new Date(s.date), 'MMM');
                     } else {
                          key = s.start_time ? format(new Date(s.start_time), 'h:mm a') : 'Unknown';
                     }
@@ -178,6 +198,9 @@ export const useDashboardData = (filters?: DashboardFilters) => {
                      sortedStats.sort((a, b) => days.indexOf(a.date) - days.indexOf(b.date));
                  } else if (filters?.timeframe === 'month') {
                      sortedStats.sort((a, b) => a.date.localeCompare(b.date, undefined, { numeric: true }));
+                 } else if (filters?.timeframe === 'semester') {
+                     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                     sortedStats.sort((a, b) => months.indexOf(a.date) - months.indexOf(b.date));
                  }
 
                 setStats(sortedStats.length > 0 ? sortedStats : []);

@@ -1,12 +1,35 @@
 import { Routes, Route, Navigate } from "react-router-dom"
+import { lazy, Suspense } from "react"
 import { DashboardShell } from "@/components/layout/DashboardShell"
 import { ThemeProvider } from "@/components/theme-provider"
 import DashboardHome from "@/pages/DashboardHome"
 import { Login } from "@/pages/Login"
-import { StudentRegistration } from "@/pages/StudentRegistration"
-import { FacultyManagement } from "@/pages/FacultyManagement"
+import { RegistrationPage } from "@/pages/RegistrationPage"
+import { TimetablePage } from "@/pages/TimetablePage"
+import { AttendanceManager } from "@/pages/AttendanceManager"
+import { LeaveManager } from "@/pages/LeaveManager"
+import { ComparePage } from "@/pages/ComparePage"
+import { SettingsPage } from "@/pages/SettingsPage"
+import { HelpPage } from "@/pages/HelpPage"
 import { Unauthorized } from "@/pages/Unauthorized"
+import { ReportsPage } from "@/pages/ReportsPage"
+import { CalendarPage } from "@/pages/CalendarPage"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
+import { Loader2 } from "lucide-react"
+
+// Lazy-loaded new pages
+const CompliancePage = lazy(() => import("@/pages/CompliancePage"))
+const BenchmarkingPage = lazy(() => import("@/pages/BenchmarkingPage"))
+const SectionManager = lazy(() => import("@/pages/SectionManager"))
+const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"))
+const SemesterUpgrader = lazy(() => import("@/pages/SemesterUpgrader"))
+const AdminBroadcastPage = lazy(() => import("@/pages/AdminBroadcastPage"))
+
+const PageLoader = () => (
+  <div className="flex h-64 items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+)
 
 function App() {
   return (
@@ -20,50 +43,49 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['hod', 'principal', 'management', 'developer', 'admin']}>
                   <DashboardShell>
-                    <Routes>
-                      <Route path="/dashboard" element={<DashboardHome />} />
-                      {/* Registration (combines students + faculty) */}
-                      <Route path="/registration" element={<StudentRegistration />} />
-                      <Route path="/students" element={<Navigate to="/registration" replace />} />
-                      <Route path="/faculty" element={<FacultyManagement />} />
-                      {/* Placeholder routes for upcoming tabs */}
-                      <Route path="/timetable" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Timetable Manager</h1>
-                          <p className="text-muted-foreground">Coming in Phase 3 — Drag-and-drop timetable management with OCR upload.</p>
-                        </div>
-                      } />
-                      <Route path="/attendance-detail" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Attendance Details</h1>
-                          <p className="text-muted-foreground">Coming in Phase 4 — Detailed per-class attendance with date navigation and bunk file generator.</p>
-                        </div>
-                      } />
-                      <Route path="/leaves" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Leave Manager</h1>
-                          <p className="text-muted-foreground">Coming in Phase 4 — Faculty leave management with substitute assignment.</p>
-                        </div>
-                      } />
-                      <Route path="/compare" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Compare</h1>
-                          <p className="text-muted-foreground">Coming in Phase 5 — Class comparison charts and trend analysis.</p>
-                        </div>
-                      } />
-                      <Route path="/settings" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Settings</h1>
-                          <p className="text-muted-foreground">Coming in Phase 5 — Profile, department, calendar, and app configuration.</p>
-                        </div>
-                      } />
-                      <Route path="/help" element={
-                        <div className="space-y-4">
-                          <h1 className="text-3xl font-bold text-primary tracking-tight">Help & Support</h1>
-                          <p className="text-muted-foreground">Coming in Phase 5 — Guides, FAQ, and support contact.</p>
-                        </div>
-                      } />
-                    </Routes>
+                    <Suspense fallback={<PageLoader />}>
+                      <Routes>
+                        <Route path="/dashboard" element={<DashboardHome />} />
+                        {/* Registration (combines students + faculty) */}
+                        <Route path="/registration" element={<RegistrationPage />} />
+                        <Route path="/students" element={<Navigate to="/registration" replace />} />
+                        <Route path="/faculty" element={<Navigate to="/registration" replace />} />
+                        {/* Timetable */}
+                        <Route path="/timetable" element={<TimetablePage />} />
+                        {/* Attendance */}
+                        <Route path="/attendance-manager" element={<AttendanceManager />} />
+                        <Route path="/attendance-detail" element={<Navigate to="/attendance-manager" replace />} />
+                        {/* Leave Manager */}
+                        <Route path="/leaves" element={<LeaveManager />} />
+                        <Route path="/leave-manager" element={<Navigate to="/leaves" replace />} />
+                        {/* Analytics */}
+                        <Route path="/compare" element={<ComparePage />} />
+                        <Route path="/reports" element={<ReportsPage />} />
+                        <Route path="/compliance" element={<CompliancePage />} />
+                        <Route path="/benchmarking" element={
+                          <ProtectedRoute allowedRoles={['principal', 'management', 'developer', 'admin']}>
+                            <BenchmarkingPage />
+                          </ProtectedRoute>
+                        } />
+                        {/* Management */}
+                        <Route path="/sections" element={<SectionManager />} />
+                        <Route path="/calendar" element={<CalendarPage />} />
+                        <Route path="/audit-log" element={<AuditLogPage />} />
+                        <Route path="/broadcast" element={
+                          <ProtectedRoute allowedRoles={['principal', 'management', 'developer', 'admin']}>
+                            <AdminBroadcastPage />
+                          </ProtectedRoute>
+                        } />
+                        {/* System (restricted) */}
+                        <Route path="/semester-upgrade" element={
+                          <ProtectedRoute allowedRoles={['principal', 'management', 'developer', 'admin']}>
+                            <SemesterUpgrader />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/help" element={<HelpPage />} />
+                      </Routes>
+                    </Suspense>
                   </DashboardShell>
               </ProtectedRoute>
             }

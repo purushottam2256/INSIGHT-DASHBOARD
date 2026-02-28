@@ -18,10 +18,8 @@ export const useUserRole = () => {
                 const { data: { session } } = await supabase.auth.getSession();
                 setSession(session);
 
-                console.log("UseUserRole: Session found?", !!session);
 
                 if (!session?.user?.email) {
-                    console.log("UseUserRole: No email in session");
                     setRole(null);
                     setDept(null);
                     setLoading(false);
@@ -29,35 +27,27 @@ export const useUserRole = () => {
                 }
 
                 const email = session.user.email;
-                console.log("UseUserRole: Checking role for", email);
 
                 // 1. Check Admin Table via RPC (Bypasses RLS)
                 // Using RPC allows us to use security definer to bypass RLS policies on the admins table
                 // Note: Admins usually don't have a specific dept, or they have access to all.
-                const { data: adminRole, error: adminError } = await supabase
+                const { data: adminRole, error: _adminError } = await supabase
                     .rpc('get_user_admin_role', { check_email: email });
 
-                if (adminError) {
-                    console.error("UseUserRole: RPC check error", adminError);
-                }
 
                 // 2. Fetch Profile Data (Always fetch to get Dept, even if Admin)
-                const { data: profile, error: profileError } = await supabase
+                const { data: profile, error: _profileError } = await supabase
                     .from('profiles')
                     .select('role, dept')
                     .eq('id', session.user.id)
                     .single();
 
-                if (profileError) {
-                    console.error("UseUserRole: Profile fetch error", profileError);
-                }
 
                 // Determine Final Role & Dept
                 // Admin table takes precedence for Role, but we need Profile for Dept
                 const finalRole = (adminRole as UserRole) || (profile?.role as UserRole) || null;
                 const finalDept = profile?.dept || null;
 
-                console.log("UseUserRole: Final Decision", { adminRole, profileRole: profile?.role, finalRole, finalDept });
 
                 setRole(finalRole);
                 setDept(finalDept);

@@ -49,7 +49,6 @@ export const useSearch = (query: string, debounceMs = 300) => {
 
                 // Determine if user is dept-scoped (HOD) or has full access
                 const isHOD = role === 'hod' && !!dept;
-                const hasCrossAccess = ['principal', 'management', 'developer', 'admin'].includes(role || '');
 
                 // 1. Search Students
                 let studentsQuery = supabase

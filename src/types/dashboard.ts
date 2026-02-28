@@ -66,7 +66,7 @@ export interface ClassSession {
 
 // ... existing interfaces ...
 
-export type Timeframe = 'day' | 'week' | 'month';
+export type Timeframe = 'day' | 'week' | 'month' | 'semester';
 
 export interface AttendanceFilter {
     date?: Date;

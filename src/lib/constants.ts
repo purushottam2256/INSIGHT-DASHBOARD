@@ -3,7 +3,12 @@ export const DEPARTMENTS = [
   { value: "CSE", label: "CSE" },
   { value: "CSM", label: "CSM" },
   { value: "CSD-AIDS", label: "CSD-AIDS" },
+  { value: "CSC", label: "CSC" },
+  { value: "AIML", label: "AIML" },
   { value: "ECE", label: "ECE" },
+  { value: "EEE", label: "EEE" },
+  { value: "MECH", label: "Mechanical" },
+  { value: "IT", label: "IT" },
 ];
 
 export const YEARS = [
@@ -14,3 +19,6 @@ export const YEARS = [
 ];
 
 export const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+/** Roles that have cross-department and elevated access */
+export const ELEVATED_ROLES = ['principal', 'management', 'developer', 'admin'] as const;

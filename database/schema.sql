@@ -1373,6 +1373,45 @@ create policy "Users can insert their own leaves" on public.leaves
 create policy "Users can view their own leaves" on public.leaves
   for select using (auth.uid() = user_id);
 
+-- HOD can view, update, and insert leaves for their department
+create policy "HOD can view department leaves" on public.leaves
+  for select using (
+      public.auth_user_role() = 'hod' AND 
+      exists (select 1 from public.profiles where id = leaves.user_id and dept = public.auth_user_dept())
+  );
+
+create policy "HOD can update department leaves" on public.leaves
+  for update using (
+      public.auth_user_role() = 'hod' AND 
+      exists (select 1 from public.profiles where id = leaves.user_id and dept = public.auth_user_dept())
+  );
+
+create policy "HOD can insert department leaves" on public.leaves
+  for insert with check (
+      public.auth_user_role() = 'hod' AND 
+      exists (select 1 from public.profiles where id = user_id and dept = public.auth_user_dept())
+  );
+
+-- Principal can view, update, and insert all leaves
+create policy "Principal can view all leaves" on public.leaves
+  for select using (public.auth_user_role() = 'principal');
+
+create policy "Principal can update all leaves" on public.leaves
+  for update using (public.auth_user_role() = 'principal');
+
+create policy "Principal can insert all leaves" on public.leaves
+  for insert with check (public.auth_user_role() = 'principal');
+
+-- Developer/Management can view, update, and insert all leaves
+create policy "Admins can view all leaves" on public.leaves
+  for select using (public.auth_user_role() in ('developer', 'management'));
+
+create policy "Admins can update all leaves" on public.leaves
+  for update using (public.auth_user_role() in ('developer', 'management'));
+
+create policy "Admins can insert all leaves" on public.leaves
+  for insert with check (public.auth_user_role() in ('developer', 'management'));
+
 create policy "Users can insert their own issues" on public.issues
   for insert with check (auth.uid() = user_id);
 

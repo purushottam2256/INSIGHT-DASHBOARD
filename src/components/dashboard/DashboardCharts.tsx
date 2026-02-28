@@ -2,9 +2,6 @@ import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
-  Pie,
-  PieChart,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,

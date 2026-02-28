@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import CommandPalette from '@/components/CommandPalette';
 import { Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useAutoEscalation } from '@/hooks/useAutoEscalation';
 
 interface DashboardShellProps {
     children?: React.ReactNode;
@@ -13,6 +15,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { profile } = useDashboardData();
+
+    // Background auto-escalation (stale leaves, missing sessions)
+    useAutoEscalation();
 
     return (
         <div className="flex h-screen w-full bg-background overflow-hidden relative font-sans">
@@ -30,7 +35,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
             {/* Main Content Wrapper — offset by sidebar width */}
             <div className={cn(
                 "flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 relative",
-                "md:ml-[240px]",
+                "md:ml-[250px]",
                 isSidebarCollapsed && "md:ml-[72px]"
             )}>
                 {/* === Animated Background Elements === */}
@@ -88,6 +93,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
                     </div>
                 </main>
             </div>
+
+            {/* Command Palette (Ctrl+K) */}
+            <CommandPalette />
         </div>
     );
 };

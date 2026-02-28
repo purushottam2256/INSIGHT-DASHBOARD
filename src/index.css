@@ -3,47 +3,48 @@
 @tailwind utilities;
 
 /* ============================================================================
-   INSIGHT DASHBOARD — Premium Orange Theme
+   INSIGHT DASHBOARD — Premium Institutional Orange Theme
    
    Design Philosophy:
-   - Orange as the ONLY primary color
-   - Warm-tinted neutrals (cream/sand for light, warm-dark for dark)
-   - No cool grays or pure blacks — everything has a slight warm undertone
+   - Deep orange as the ONLY primary color
+   - Warm-tinted neutrals with sharper contrast
+   - Glassmorphism + depth-aware surfaces
+   - Red-zone for dangerous operations (semester upgrade, section merge)
    ============================================================================ */
 
 @layer base {
   :root {
     /* ── Backgrounds ── */
-    --background: 40 20% 98%; /* #FAFAF6 — warm white */
-    --foreground: 30 10% 10%; /* #1B1917 — warm near-black */
+    --background: 36 18% 97%; /* cleaner warm white */
+    --foreground: 25 15% 8%; /* deeper warm black */
 
     /* ── Cards & Surfaces ── */
-    --card: 40 30% 99%; /* #FEFDFB — crisp warm white */
-    --card-foreground: 30 10% 10%;
+    --card: 0 0% 100%; /* pure white card — maximum contrast vs background */
+    --card-foreground: 25 15% 8%;
 
     /* ── Primary (Orange) ── */
-    --primary: 28 90% 48%; /* #E8730C — rich burnt orange */
-    --primary-foreground: 0 0% 100%; /* white text on primary */
+    --primary: 24 95% 50%; /* #F57C00 — deeper, more institutional orange */
+    --primary-foreground: 0 0% 100%;
 
     /* ── Secondary (Warm Sand) ── */
-    --secondary: 30 25% 95%; /* #F5F0EB — warm sand */
+    --secondary: 32 30% 92%; /* deeper warm sand */
     --secondary-foreground: 30 10% 20%;
 
     /* ── Muted (Cream) ── */
-    --muted: 30 20% 93%; /* #EEEBE5 — soft cream */
+    --muted: 30 25% 90%; /* richer cream — visible but subtle */
     --muted-foreground: 25 8% 45%; /* warm gray text */
 
     /* ── Accent (Peach Highlight) ── */
-    --accent: 33 100% 95%; /* #FFF3E0 — light peach */
+    --accent: 33 80% 93%; /* warm peach accent — slightly deeper */
     --accent-foreground: 28 90% 30%;
 
     /* ── Popover ── */
-    --popover: 40 30% 99%;
-    --popover-foreground: 30 10% 10%;
+    --popover: 36 35% 97%;
+    --popover-foreground: 30 12% 10%;
 
     /* ── Borders & Inputs ── */
-    --border: 30 18% 88%; /* #E3DCD4 — warm border */
-    --input: 30 18% 88%;
+    --border: 30 22% 85%; /* warmer, more visible border */
+    --input: 30 22% 85%;
     --ring: 28 90% 48%; /* matches primary */
 
     /* ── Destructive ── */
@@ -62,48 +63,48 @@
   }
 
   .dark {
-    /* ── Backgrounds (Warm Black) ── */
-    --background: 30 8% 6%; /* #0F0E0D — warm near-black */
-    --foreground: 35 15% 95%; /* #F5F2ED — warm off-white */
+    /* ── Backgrounds (True Dark Slate) ── */
+    --background: 220 15% 6%; /* #0D1017 — dark slate with cool depth */
+    --foreground: 36 15% 95%; /* warm off-white */
 
     /* ── Cards & Surfaces ── */
-    --card: 30 8% 9%; /* #18160F — warm dark surface */
-    --card-foreground: 35 15% 95%;
+    --card: 220 14% 9%; /* #12161F — dark slate card */
+    --card-foreground: 36 15% 95%;
 
     /* ── Primary (Amber-Orange for dark) ── */
-    --primary: 33 95% 55%; /* #F59E0B — vibrant amber */
-    --primary-foreground: 30 8% 6%; /* dark text on amber */
+    --primary: 28 100% 55%; /* #FF8C1A — vibrant deep orange */
+    --primary-foreground: 220 15% 6%;
 
     /* ── Secondary (Warm Dark) ── */
-    --secondary: 30 10% 14%; /* #262420 — warm dark gray */
-    --secondary-foreground: 35 15% 85%;
+    --secondary: 220 12% 13%; /* #1A1F2B — slate gray */
+    --secondary-foreground: 36 15% 85%;
 
     /* ── Muted (Dark Warm) ── */
-    --muted: 30 8% 12%; /* #1F1D1A — dark warm */
-    --muted-foreground: 30 10% 55%;
+    --muted: 220 12% 11%; /* #161A24 — deep slate */
+    --muted-foreground: 220 8% 55%;
 
     /* ── Accent (Dark Amber Tint) ── */
-    --accent: 30 20% 12%; /* #221E16 — dark amber tint */
-    --accent-foreground: 33 95% 55%;
+    --accent: 25 25% 12%; /* dark orange tint */
+    --accent-foreground: 28 100% 55%;
 
     /* ── Popover ── */
-    --popover: 30 8% 9%;
-    --popover-foreground: 35 15% 95%;
+    --popover: 220 14% 9%;
+    --popover-foreground: 36 15% 95%;
 
     /* ── Borders & Inputs ── */
-    --border: 30 10% 18%; /* #302B24 — warm dark border */
-    --input: 30 10% 18%;
-    --ring: 33 95% 55%; /* amber ring */
+    --border: 220 10% 18%; /* dark slate border */
+    --input: 220 10% 18%;
+    --ring: 28 100% 55%; /* deep orange ring */
 
     /* ── Destructive ── */
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 100%;
 
     /* ── Chart Colors (Amber Palette for dark) ── */
-    --chart-1: 33 95% 55%;
-    --chart-2: 28 90% 48%;
+    --chart-1: 28 100% 55%;
+    --chart-2: 36 100% 50%;
     --chart-3: 45 93% 47%;
-    --chart-4: 20 90% 40%;
+    --chart-4: 16 90% 40%;
     --chart-5: 0 62% 55%;
   }
 }
@@ -153,11 +154,109 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.2);
     border-radius: 3px;
+    transition: background-color 0.2s;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground) / 0.3);
+    background-color: hsl(var(--primary) / 0.4);
   }
+}
+
+/* ============================================================================
+   PREMIUM SIDEBAR & HEADER STYLES
+   ============================================================================ */
+
+/* Sidebar Glass Effect */
+.sidebar-glass {
+  background: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border) / 0.5);
+}
+
+.dark .sidebar-glass {
+  background: hsl(220 14% 7%);
+  border-right: 1px solid hsl(0 0% 100% / 0.06);
+}
+
+/* Sidebar brand text gradient */
+.sidebar-brand-text {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--foreground)) 0%,
+    hsl(var(--primary)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Sidebar active nav item */
+.sidebar-nav-active {
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--foreground));
+}
+
+.dark .sidebar-nav-active {
+  background: hsl(var(--primary) / 0.1);
+}
+
+/* Sidebar active glow animation */
+.sidebar-active-glow {
+  animation: sidebar-glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes sidebar-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 6px hsl(28 90% 48% / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px hsl(28 90% 48% / 0.7);
+  }
+}
+
+/* Sidebar shimmer line accent */
+.sidebar-shimmer-line {
+  background-size: 200% 100%;
+  animation: sidebar-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes sidebar-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Sidebar user card */
+.sidebar-user-card {
+  background: hsl(var(--accent) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.3);
+}
+
+.dark .sidebar-user-card {
+  background: hsl(0 0% 100% / 0.02);
+  border: 1px solid hsl(0 0% 100% / 0.04);
+}
+
+/* Header glass effect */
+.header-glass {
+  background: hsl(var(--card) / 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  box-shadow:
+    0 1px 3px hsl(var(--foreground) / 0.02),
+    0 4px 16px hsl(var(--foreground) / 0.01);
+}
+
+.dark .header-glass {
+  background: hsl(220 14% 7% / 0.85);
+  border-bottom: 1px solid hsl(0 0% 100% / 0.06);
+  box-shadow:
+    0 1px 3px hsl(0 0% 0% / 0.2),
+    0 0 20px hsl(28 100% 55% / 0.03);
 }
 
 /* ============================================================================
@@ -239,6 +338,35 @@
 
 .animate-fade-in-scale {
   animation: fade-in-scale 0.4s ease-out forwards;
+}
+
+/* Search Highlight — Orange pulsing box around matched items */
+@keyframes search-highlight-pulse {
+  0% {
+    box-shadow:
+      0 0 0 3px hsl(28 90% 48% / 0.6),
+      0 0 20px hsl(28 90% 48% / 0.3);
+    border-color: hsl(28 90% 48% / 0.8);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px hsl(28 90% 48% / 0.3),
+      0 0 30px hsl(28 90% 48% / 0.15);
+    border-color: hsl(28 90% 48% / 0.5);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0px hsl(28 90% 48% / 0),
+      0 0 0px hsl(28 90% 48% / 0);
+    border-color: transparent;
+  }
+}
+
+.search-highlight {
+  animation: search-highlight-pulse 2s ease-out forwards;
+  border: 2px solid hsl(28 90% 48% / 0.8);
+  border-radius: 12px;
+  position: relative;
 }
 
 /* ============================================================================
@@ -339,4 +467,172 @@
 
 .animate-shimmer-line {
   animation: shimmer-line 6s ease-in-out infinite;
+}
+
+/* ============================================================================
+   PREMIUM UTILITY CLASSES
+   ============================================================================ */
+
+/* Glass Card — frosted glass effect */
+.glass-card {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--border) / 0.4);
+  box-shadow:
+    0 1px 3px hsl(var(--foreground) / 0.02),
+    0 8px 32px hsl(var(--foreground) / 0.04);
+}
+
+.dark .glass-card {
+  background: hsl(220 14% 9% / 0.7);
+  border: 1px solid hsl(0 0% 100% / 0.06);
+  box-shadow:
+    0 1px 3px hsl(0 0% 0% / 0.2),
+    0 8px 32px hsl(0 0% 0% / 0.3);
+}
+
+/* Premium Glow — subtle orange glow on hover */
+.premium-glow {
+  transition:
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.premium-glow:hover {
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.15),
+    0 4px 20px hsl(var(--primary) / 0.08),
+    0 8px 40px hsl(var(--primary) / 0.04);
+  border-color: hsl(var(--primary) / 0.2);
+  transform: translateY(-1px);
+}
+
+/* Gradient Text — orange gradient */
+.gradient-text {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary)) 0%,
+    hsl(36 100% 50%) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Red Zone — for dangerous operations */
+.red-zone {
+  background: hsl(0 72% 51% / 0.04);
+  border: 2px solid hsl(0 72% 51% / 0.2);
+  position: relative;
+}
+
+.red-zone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    hsl(0 72% 51% / 0.03) 10px,
+    hsl(0 72% 51% / 0.03) 20px
+  );
+  pointer-events: none;
+}
+
+.dark .red-zone {
+  background: hsl(0 72% 51% / 0.06);
+  border-color: hsl(0 72% 51% / 0.3);
+}
+
+/* Status Badge — role-colored pills */
+.status-badge-hod {
+  background: hsl(28 100% 55% / 0.12);
+  color: hsl(28 100% 45%);
+  border: 1px solid hsl(28 100% 55% / 0.2);
+}
+
+.status-badge-principal {
+  background: hsl(220 90% 55% / 0.12);
+  color: hsl(220 90% 50%);
+  border: 1px solid hsl(220 90% 55% / 0.2);
+}
+
+.status-badge-management {
+  background: hsl(280 80% 55% / 0.12);
+  color: hsl(280 80% 50%);
+  border: 1px solid hsl(280 80% 55% / 0.2);
+}
+
+/* New Animations */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.15);
+  }
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s ease-in-out infinite;
+}
+
+@keyframes bounce-subtle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
 }

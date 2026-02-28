@@ -17,8 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { 
-  BarChart, 
-  Bar, 
   LineChart,
   Line,
   XAxis, 
@@ -40,11 +38,11 @@ interface AttendanceAnalyticsProps {
     loading?: boolean;
 }
 
-const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: AttendanceAnalyticsProps) => {
+const AttendanceAnalytics = ({ sessions = [], onFilterChange, loading }: AttendanceAnalyticsProps) => {
     const { role, dept: userDept } = useUserRole();
     
     // State for filters
-    const [timeframe, setTimeframe] = useState<Timeframe>("day");
+    const [timeframe, setTimeframe] = useState<Timeframe>("week");
     const [date, setDate] = useState<Date | undefined>(new Date());
     const [year, setYear] = useState<string>("all-years");
     const [section, setSection] = useState<string>("all-sections");
@@ -106,7 +104,7 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
     const isDeptLocked = !['principal', 'management', 'developer', 'admin'].includes(role || '');
 
     const handleRefresh = () => {
-        setTimeframe("day");
+        setTimeframe("week");
         setDate(new Date());
         setYear("all-years");
         setSection("all-sections");
@@ -121,7 +119,7 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
     // 1. Line Chart Data (for Week/Month - TRENDS)
     // 1. Line Chart Data (for Week/Month - TRENDS)
     const lineChartData = useMemo(() => {
-        if (timeframe === 'day' || !sessions) return { data: [], lines: [] };
+        if (!sessions) return { data: [], lines: [] };
 
         const groupedData = new Map<string, any>();
         const allClassNames = new Set<string>();
@@ -136,6 +134,10 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
         } else if (timeframe === 'week') {
             const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             days.forEach(d => groupedData.set(d, { name: d }));
+        } else if (timeframe === 'semester') {
+            // Semester: group by month name
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            months.forEach(m => groupedData.set(m, { name: m }));
         }
 
         sessions.forEach(s => {
@@ -145,10 +147,11 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
             if (timeframe === 'week') timeKey = format(new Date(s.date), 'EEE'); 
             else if (timeframe === 'month') {
                 const d = new Date(s.date);
-                // Calculate Week of Month (1-5)
                 const day = d.getDate();
                 const weekNum = Math.ceil(day / 7);
                 timeKey = `Week ${weekNum}`;
+            } else if (timeframe === 'semester') {
+                timeKey = format(new Date(s.date), 'MMM');
             }
 
             // Fix for "3-CSM-CSM-3-A" -> "3-csm-a" (Normalize)
@@ -195,19 +198,6 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
         return { data: result, lines: Array.from(allClassNames) };
     }, [sessions, timeframe]);
 
-    // 2. Bar Chart Data (for Today - PERIODS: P1 & P4 ONLY)
-    const barChartData = useMemo(() => {
-        if (!stats) return [];
-        // Filter for Period 1 (Forenoon) and Period 4 (Afternoon)
-        const relevantPeriods = ['1', '4'];
-        return stats
-            .filter(s => relevantPeriods.includes(s.period ? s.period.toString() : ''))
-            .map(s => ({
-                ...s,
-                periodLabel: (s.period?.toString() ?? '') === '1' ? 'Forenoon' : 'Afternoon' 
-            }))
-            .sort((a, _b) => (a.period === '1' ? -1 : 1)); 
-    }, [stats]);
 
 
     // Sections Filtering Logic
@@ -291,10 +281,10 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
                 {/* Layer 2: Time Mode Toggle (Segmented Glass) */}
                 <div className="flex items-center justify-between gap-2">
                      <div className="flex p-1 bg-secondary/60 dark:bg-secondary/30 rounded-xl w-full sm:w-auto backdrop-blur-md border border-border/30">
-                        {(['day', 'week', 'month'] as const).map((t) => (
+                        {(['week', 'month', 'semester'] as const).map((t) => (
                             <button
                                 key={t}
-                                onClick={() => setTimeframe(t)}
+                                onClick={() => setTimeframe(t as Timeframe)}
                                 className={cn(
                                     "flex-1 sm:flex-none px-4 py-1.5 text-xs font-semibold rounded-lg transition-all duration-300 capitalize",
                                     timeframe === t 
@@ -302,24 +292,12 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
                                         : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                                 )}
                             >
-                                {t === 'day' ? 'Today' : t}
+                                {t === 'semester' ? 'Sem' : t}
                             </button>
                         ))}
                     </div>
 
-                    {/* Layer 3: Sub-filter (Period) */}
-                    {timeframe === 'day' && (
-                         <Select value={period} onValueChange={setPeriod}>
-                            <SelectTrigger className="h-8 w-[110px] text-xs border-border/50 bg-secondary/50 dark:bg-secondary/30 hover:bg-secondary/80 focus:ring-primary/30 backdrop-blur-md">
-                                <SelectValue placeholder="Session" />
-                            </SelectTrigger>
-                            <SelectContent className="backdrop-blur-xl bg-popover/95 dark:bg-popover/95 border-border/50">
-                                <SelectItem value="all-periods">Both</SelectItem>
-                                <SelectItem value="1">Forenoon</SelectItem>
-                                <SelectItem value="4">Afternoon</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    )}
+                    {/* No sub-filter for week/month/semester — removed day-specific period filter */}
                 </div>
             </CardHeader>
 
@@ -332,48 +310,8 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
 
                   {/* CHART RENDERING */}
                   <ResponsiveContainer width="100%" height="100%">
-                    {/* CASE 1: TODAY -> BAR CHART (Forenoon/Afternoon) */}
-                    {timeframe === 'day' ? (
-                        barChartData.length > 0 ? (
-                            <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" opacity={0.5} />
-                                <XAxis dataKey="periodLabel" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                                <Tooltip 
-                                    cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                                    content={({ active, payload, label }) => {
-                                        if (active && payload && payload.length) {
-                                            return (
-                                                <div className="bg-background/95 backdrop-blur-sm border border-border/50 p-3 rounded-xl shadow-xl z-50">
-                                                    <p className="text-xs font-semibold mb-2 text-foreground">{label}</p>
-                                                    <div className="space-y-1">
-                                                        {payload.map((entry: any, index: number) => {
-                                                            const total = entry.payload.total || 0;
-                                                            const percent = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0.0';
-                                                            return (
-                                                                <div key={index} className="flex items-center gap-2 text-xs">
-                                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                                                                    <span className="text-muted-foreground capitalize">{entry.name}:</span>
-                                                                    <span className="font-medium">{entry.value} ({percent}%)</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    }}
-                                />
-                                <Legend verticalAlign="top" height={36} iconType="circle" iconSize={6} wrapperStyle={{ fontSize: '12px' }}/>
-                                <Bar dataKey="present" name="Present" fill="hsl(28, 90%, 48%)" radius={[4, 4, 0, 0]} barSize={20} />
-                                <Bar dataKey="od" name="OD" fill="hsl(36, 100%, 50%)" radius={[4, 4, 0, 0]} barSize={20} />
-                                <Bar dataKey="absent" name="Absent" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} barSize={20} />
-                            </BarChart>
-                        ) : <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No data for today</div>
-                    ) : ( 
-                        // CASE 2: WEEK/MONTH -> LINE CHART (Trends)
-                        lineChartData.data && lineChartData.data.length > 0 ? (
+                        {/* Line Chart (Trends for Week/Month/Semester) */}
+                        {lineChartData.data && lineChartData.data.length > 0 ? (
                             <LineChart data={lineChartData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" opacity={0.5} />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={10} />
@@ -416,8 +354,7 @@ const AttendanceAnalytics = ({ stats, sessions = [], onFilterChange, loading }: 
                                     />
                                 ))}
                             </LineChart>
-                        ) : <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No trend data available</div>
-                    )}
+                        ) : <div className="flex h-full items-center justify-center text-muted-foreground text-sm">No trend data available</div>}
                   </ResponsiveContainer>
             </CardContent>
         </Card>

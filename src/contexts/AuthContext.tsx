@@ -4,10 +4,18 @@ import { supabase } from "@/lib/supabase"
 
 type UserRole = "faculty" | "class_incharge" | "lab_incharge" | "management" | "hod" | "principal" | "developer"
 
+export interface UserProfile {
+  id: string
+  role: string
+  dept?: string | null
+  full_name?: string | null
+}
+
 interface AuthContextType {
   session: Session | null
   user: User | null
   role: UserRole | null
+  profile: UserProfile | null
   loading: boolean
   signOut: () => Promise<void>
 }
@@ -16,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   role: null,
+  profile: null,
   loading: true,
   signOut: async () => {},
 })
@@ -24,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -48,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchRole(session.user.id)
       } else {
         setRole(null)
+        setProfile(null)
         setLoading(false)
       }
     })
@@ -66,13 +77,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!adminError && adminData) {
         setRole(adminData.role as UserRole)
+        setProfile({ id: userId, role: adminData.role })
         return
       }
 
       // 2. Fallback to Profiles (Faculty/Staff)
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, dept, full_name")
         .eq("id", userId)
         .single()
 
@@ -80,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error("Error fetching user role:", profileError)
       } else {
         setRole(profileData.role as UserRole)
+        setProfile({ id: userId, ...profileData })
       }
     } catch (err) {
       console.error("Unexpected error fetching role:", err)
@@ -91,12 +104,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setRole(null)
+    setProfile(null)
     setSession(null)
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, role, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )

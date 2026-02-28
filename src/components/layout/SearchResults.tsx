@@ -1,5 +1,6 @@
-import { GraduationCap, User, BookOpen, ClipboardList, Loader2, SearchX } from 'lucide-react';
+import { GraduationCap, User, BookOpen, ClipboardList, Loader2, SearchX, ArrowRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useNavigate } from 'react-router-dom';
 import type { SearchResults as SearchResultsType, SearchResultItem } from '@/hooks/useSearch';
 
 interface SearchResultsProps {
@@ -10,14 +11,24 @@ interface SearchResultsProps {
 }
 
 const categoryConfig = {
-    students: { icon: GraduationCap, label: 'Students', color: 'text-primary' },
-    faculty: { icon: User, label: 'Faculty', color: 'text-amber-600 dark:text-amber-400' },
-    subjects: { icon: BookOpen, label: 'Subjects', color: 'text-orange-700 dark:text-orange-300' },
-    sessions: { icon: ClipboardList, label: 'Sessions', color: 'text-orange-500 dark:text-orange-400' },
+    students: { icon: GraduationCap, label: 'Students', color: 'text-primary', route: '/registration?tab=students' },
+    faculty: { icon: User, label: 'Faculty', color: 'text-amber-600 dark:text-amber-400', route: '/registration?tab=faculty' },
+    subjects: { icon: BookOpen, label: 'Subjects', color: 'text-orange-700 dark:text-orange-300', route: '/timetable' },
+    sessions: { icon: ClipboardList, label: 'Sessions', color: 'text-orange-500 dark:text-orange-400', route: '/attendance-manager' },
 };
 
 const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps) => {
+    const navigate = useNavigate();
     const hasResults = results.students.length > 0 || results.faculty.length > 0 || results.subjects.length > 0 || results.sessions.length > 0;
+
+    const handleResultClick = (item: SearchResultItem, category: keyof typeof categoryConfig) => {
+        const config = categoryConfig[category];
+        // Append highlight param with the item's title for orange-box highlighting
+        const separator = config.route.includes('?') ? '&' : '?';
+        const highlightParam = `${separator}highlight=${encodeURIComponent(item.title)}`;
+        navigate(config.route + highlightParam);
+        onClose();
+    };
 
     return (
         <div className="absolute top-full mt-2 left-0 right-0 w-full min-w-[340px] bg-card/98 dark:bg-card/98 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl shadow-black/10 dark:shadow-black/30 z-50 overflow-hidden animate-fade-in-scale">
@@ -67,10 +78,7 @@ const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps)
                                             <button
                                                 key={item.id}
                                                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-accent/80 dark:hover:bg-accent/60 transition-colors text-left group"
-                                                onClick={() => {
-                                                    // Future: navigate to detail page
-                                                    onClose();
-                                                }}
+                                                onClick={() => handleResultClick(item, category)}
                                             >
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
@@ -86,6 +94,7 @@ const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps)
                                                         )}
                                                     </div>
                                                 </div>
+                                                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
                                             </button>
                                         ))}
                                     </div>
@@ -100,7 +109,7 @@ const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps)
             {hasResults && !loading && (
                 <div className="border-t border-border/50 px-4 py-2">
                     <p className="text-[10px] text-muted-foreground/60 text-center">
-                        Press <kbd className="px-1 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-mono">Esc</kbd> to close
+                        Click a result to navigate · <kbd className="px-1 py-0.5 rounded bg-muted text-muted-foreground text-[9px] font-mono">Esc</kbd> to close
                     </p>
                 </div>
             )}

@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { LeaveRequest } from '@/types/dashboard';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { sendNotification } from '@/lib/fcm';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface WelcomeSectionProps {
     userName: string;
@@ -22,7 +24,6 @@ const WelcomeSection = ({
     leaveRequests, 
     todayClassesCount, 
     attendancePercent, 
-    activeODCount 
 }: WelcomeSectionProps) => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -60,12 +61,13 @@ const WelcomeSection = ({
         return { period: 'After Hours', color: 'text-white/50' };
     };
 
-    const handleLeaveAction = async (leaveId: string, action: 'accepted' | 'declined') => {
+    const handleLeaveAction = async (leaveId: string, userId: string, action: 'accepted' | 'declined') => {
         setActionLoading(leaveId);
         try {
+            const dbStatus = action === 'accepted' ? 'approved' : 'rejected';
             const { error } = await supabase
                 .from('leaves')
-                .update({ status: action, updated_at: new Date().toISOString() })
+                .update({ status: dbStatus, updated_at: new Date().toISOString() })
                 .eq('id', leaveId);
             
             if (error) throw error;
@@ -73,10 +75,24 @@ const WelcomeSection = ({
             // Remove from local state
             setLocalLeaves(prev => prev.filter(l => l.id !== leaveId));
 
-            // The DB trigger handle_leave_status_update will auto-send notification via FCM
+            // Send FCM notification to the faculty member
+            try {
+                await sendNotification(
+                    [userId],
+                    {
+                        title: `Leave Request ${action === 'accepted' ? 'Approved' : 'Declined'}`,
+                        body: `Your leave request has been ${action}. ${action === 'declined' ? 'Please contact your HOD for details.' : 'Have a good day!'}`,
+                        type: 'management_update',
+                        priority: 'high',
+                        data: { leave_id: leaveId, status: action },
+                    }
+                );
+            } catch (fcmErr) {
+                console.warn('FCM send failed (notification saved in DB):', fcmErr);
+            }
         } catch (err: any) {
             console.error('Leave action error:', err);
-            alert('Failed to update leave: ' + err.message);
+            toast.error('Failed to update leave: ' + err.message);
         } finally {
             setActionLoading(null);
         }
@@ -186,7 +202,7 @@ const WelcomeSection = ({
                                                 size="sm" 
                                                 className="flex-1 h-7 text-[10px] bg-emerald-500 hover:bg-emerald-600 text-white gap-1"
                                                 disabled={actionLoading === leave.id}
-                                                onClick={() => handleLeaveAction(leave.id, 'accepted')}
+                                                onClick={() => handleLeaveAction(leave.id, leave.user_id, 'accepted')}
                                             >
                                                 {actionLoading === leave.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                                                 Accept
@@ -196,7 +212,7 @@ const WelcomeSection = ({
                                                 variant="outline"
                                                 className="flex-1 h-7 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10 gap-1"
                                                 disabled={actionLoading === leave.id}
-                                                onClick={() => handleLeaveAction(leave.id, 'declined')}
+                                                onClick={() => handleLeaveAction(leave.id, leave.user_id, 'declined')}
                                             >
                                                 {actionLoading === leave.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
                                                 Reject
