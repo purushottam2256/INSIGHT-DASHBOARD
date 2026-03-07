@@ -88,8 +88,8 @@ export function usePermissions(): Permissions {
     canMarkAttendance: isAdmin,
     
     // Leaves
-    canApproveLeaveStage1: isHod || isAdmin,                 // HOD + Admin
-    canApproveLeaveStage2: isPrincipal || isAdmin,            // Principal + Admin
+    canApproveLeaveStage1: isHod,                             // HOD ONLY
+    canApproveLeaveStage2: isPrincipal,                        // Principal ONLY
     
     // Reports
     canViewReports: isHod || isElevated,
@@ -108,7 +108,7 @@ export function usePermissions(): Permissions {
     // Notifications
     canBroadcastDept: isHod || isElevated,
     canBroadcastAll: isElevated,
-    canAdminBroadcast: isPrincipal || isSystem,                // Principal + MGT
+    canAdminBroadcast: isHod || isPrincipal || isSystem,       // HOD + Principal + MGT
     
     // Audit
     canViewAuditLog: isHod || isElevated,

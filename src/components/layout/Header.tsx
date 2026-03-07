@@ -1,23 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, Moon, Sun, Menu, X, Loader2, Command } from 'lucide-react';
-import { NotificationCenter } from '@/components/layout/NotificationCenter';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
 import { useTheme } from '@/components/theme-provider';
 import { useSearch } from '@/hooks/useSearch';
 import SearchResults from '@/components/layout/SearchResults';
-
-interface HeaderProps {
-    onMenuClick: () => void;
-}
 
 const pageTitles: Record<string, { title: string; subtitle?: string }> = {
     '/dashboard': { title: 'Dashboard', subtitle: 'Overview & Analytics' },
     '/registration': { title: 'Registration', subtitle: 'Students & Faculty' },
     '/timetable': { title: 'Timetable', subtitle: 'Schedule Management' },
-    '/attendance-manager': { title: 'Attendance', subtitle: 'Track & Manage' },
+    '/attendance-manager': { title: 'Monthly Overview', subtitle: 'Track & Manage' },
     '/leaves': { title: 'Leave Manager', subtitle: 'Two-Stage Approvals' },
     '/compare': { title: 'Compare', subtitle: 'Analytics & Trends' },
     '/reports': { title: 'Reports', subtitle: 'Generate & Export' },
@@ -30,9 +25,17 @@ const pageTitles: Record<string, { title: string; subtitle?: string }> = {
     '/semester-upgrade': { title: 'Semester Manager', subtitle: 'Red Zone ⚠️' },
     '/settings': { title: 'Settings', subtitle: 'Configuration' },
     '/help': { title: 'Help & Support', subtitle: 'Guides & FAQ' },
+    '/student-overview': { title: 'Student Overview', subtitle: 'Individual Analytics' },
+    '/faculty-overview': { title: 'Faculty Overview', subtitle: 'Performance & Details' },
+    '/complaints': { title: 'Complaints & Suggestions', subtitle: 'Student Feedback' },
 };
 
-const Header = ({ onMenuClick }: HeaderProps) => {
+interface HeaderProps {
+    onMenuClick: () => void;
+    userName?: string;
+}
+
+const Header = ({ onMenuClick, userName }: HeaderProps) => {
     const { theme, setTheme } = useTheme();
     const location = useLocation();
     const [query, setQuery] = useState('');
@@ -44,6 +47,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
     const { results, loading: searchLoading } = useSearch(query);
 
     const currentPage = pageTitles[location.pathname] || { title: 'Dashboard', subtitle: 'Overview' };
+    const firstName = userName ? userName.split(' ')[0] : 'User';
 
     // Close search results when clicking outside
     useEffect(() => {
@@ -76,55 +80,62 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-
-
     return (
-        <header className="header-glass h-16 px-4 md:px-6 flex items-center justify-between sticky top-0 z-40 transition-all duration-300">
-            {/* Left: Mobile Menu + Page Title */}
-            <div className="flex items-center gap-3">
+        <header className="h-20 px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 transition-all duration-300 bg-background/60 backdrop-blur-md border-b border-white/10 dark:border-white/5">
+            {/* Header Ambient Glow */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10 opacity-70">
+                <div className="absolute -top-[50%] left-[20%] w-[400px] h-[200px] bg-primary/20 blur-[60px] rounded-full" />
+                <div className="absolute -top-[50%] right-[20%] w-[400px] h-[200px] bg-orange-500/20 blur-[60px] rounded-full" />
+            </div>
+
+            {/* Left: Mobile Menu + Title/Greeting */}
+            <div className="flex items-center gap-4 relative z-10">
                 <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="md:hidden text-foreground hover:bg-primary/10 rounded-xl" 
+                    className="md:hidden text-foreground hover:bg-accent rounded-xl" 
                     onClick={onMenuClick}
                 >
                     <Menu className="h-5 w-5" />
                 </Button>
                 
-                {/* Dynamic Page Title */}
-                <div className="flex flex-col">
-                    <h1 className="text-lg font-bold tracking-tight text-foreground leading-tight">
-                        {currentPage.title}
-                    </h1>
-                    {currentPage.subtitle && (
-                        <span className="text-[10px] text-muted-foreground font-medium tracking-wide leading-tight hidden sm:block">
-                            {currentPage.subtitle}
-                        </span>
+                <div className="flex flex-col justify-center h-full">
+                    {location.pathname === '/dashboard' ? (
+                        <h1 className="text-2xl pt-1 tracking-tight font-outfit text-foreground font-medium flex items-center gap-2">
+                            Welcome, <span className="font-bold text-primary">{firstName}!</span> <span className="text-xl">👋</span>
+                        </h1>
+                    ) : (
+                        <>
+                            <h1 className="text-xl font-bold tracking-tight text-foreground font-display">{currentPage.title}</h1>
+                            {currentPage.subtitle && (
+                                <p className="text-xs text-muted-foreground hidden sm:block">{currentPage.subtitle}</p>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
 
             {/* Right: Search & Actions */}
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-3 relative z-10">
                 
                 {/* Search Bar - Desktop */}
                 <div ref={searchRef} className="relative hidden md:block">
                     <div className={cn(
                         "absolute inset-0 rounded-full transition-all duration-500",
                         searchFocused 
-                            ? "bg-primary/5 ring-2 ring-primary/20 shadow-[0_0_20px_hsl(28,90%,48%,0.1)]" 
+                            ? "bg-primary/5 ring-1 ring-primary/30" 
                             : "ring-0 shadow-none"
                     )} />
                     <Search className={cn(
-                        "absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200",
-                        searchFocused ? "text-primary" : "text-muted-foreground/60"
+                        "absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors duration-200",
+                        searchFocused ? "text-primary" : "text-muted-foreground/50"
                     )} />
                     {searchLoading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary animate-spin" />
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-spin" />
                     )}
                     <Input 
                         ref={inputRef}
-                        placeholder="Search anything..." 
+                        placeholder="Search..." 
                         value={query}
                         onChange={(e) => {
                             setQuery(e.target.value);
@@ -135,7 +146,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                             if (query.length >= 2) setShowResults(true);
                         }}
                         onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-                        className="pl-10 pr-20 w-72 h-9 rounded-full bg-secondary/40 dark:bg-white/[0.04] border-border/30 dark:border-white/[0.06] focus:border-transparent focus:bg-card/80 dark:focus:bg-white/[0.06] transition-all duration-300 text-sm placeholder:text-muted-foreground/50 relative z-10 focus-visible:ring-0"
+                        className="pl-11 pr-20 w-80 h-10 rounded-full bg-white dark:bg-card border-border/50 focus:border-primary/50 focus:bg-white dark:focus:bg-card transition-all duration-300 text-sm text-foreground shadow-sm relative z-10 focus-visible:ring-0"
                     />
                     {!query && !searchLoading && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-muted-foreground/40 pointer-events-none z-10">
@@ -173,10 +184,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                     <Search className="h-4 w-4" />
                 </Button>
 
-                {/* Notification Center */}
-                <div className="hidden sm:block">
-                    <NotificationCenter />
-                </div>
+                {/* Notification center removed as per request */}
 
                 {/* Theme Toggle — Premium Pill */}
                 <div className="flex items-center bg-secondary/40 dark:bg-white/[0.04] rounded-full p-0.5 border border-border/30 dark:border-white/[0.06] relative overflow-hidden">

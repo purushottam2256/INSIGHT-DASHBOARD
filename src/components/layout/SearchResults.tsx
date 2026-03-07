@@ -1,7 +1,8 @@
-import { GraduationCap, User, BookOpen, ClipboardList, Loader2, SearchX, ArrowRight } from 'lucide-react';
+import { GraduationCap, User, BookOpen, ClipboardList, Loader2, SearchX, ArrowRight, Navigation } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNavigate } from 'react-router-dom';
 import type { SearchResults as SearchResultsType, SearchResultItem } from '@/hooks/useSearch';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SearchResultsProps {
     results: SearchResultsType;
@@ -11,22 +12,36 @@ interface SearchResultsProps {
 }
 
 const categoryConfig = {
-    students: { icon: GraduationCap, label: 'Students', color: 'text-primary', route: '/registration?tab=students' },
-    faculty: { icon: User, label: 'Faculty', color: 'text-amber-600 dark:text-amber-400', route: '/registration?tab=faculty' },
+    keywords: { icon: Navigation, label: 'Quick Links', color: 'text-emerald-500', route: '' },
+    students: { icon: GraduationCap, label: 'Students', color: 'text-primary', route: '/student-overview' },
+    faculty: { icon: User, label: 'Faculty', color: 'text-amber-600 dark:text-amber-400', route: '/faculty-overview' },
     subjects: { icon: BookOpen, label: 'Subjects', color: 'text-orange-700 dark:text-orange-300', route: '/timetable' },
     sessions: { icon: ClipboardList, label: 'Sessions', color: 'text-orange-500 dark:text-orange-400', route: '/attendance-manager' },
 };
 
 const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps) => {
     const navigate = useNavigate();
-    const hasResults = results.students.length > 0 || results.faculty.length > 0 || results.subjects.length > 0 || results.sessions.length > 0;
+    const { signOut } = useAuth();
+    const hasResults = results.keywords.length > 0 || results.students.length > 0 || results.faculty.length > 0 || results.subjects.length > 0 || results.sessions.length > 0;
 
     const handleResultClick = (item: SearchResultItem, category: keyof typeof categoryConfig) => {
-        const config = categoryConfig[category];
-        // Append highlight param with the item's title for orange-box highlighting
-        const separator = config.route.includes('?') ? '&' : '?';
-        const highlightParam = `${separator}highlight=${encodeURIComponent(item.title)}`;
-        navigate(config.route + highlightParam);
+        if (category === 'keywords') {
+            const anyItem = item as any;
+            if (anyItem.route === 'logout') {
+                signOut();
+            } else {
+                navigate(anyItem.route);
+            }
+        } else if (category === 'students') {
+            navigate(`/student-overview?id=${item.id}`);
+        } else if (category === 'faculty') {
+            navigate(`/faculty-overview?id=${item.id}`);
+        } else {
+            const config = categoryConfig[category];
+            const separator = config.route.includes('?') ? '&' : '?';
+            const highlightParam = `${separator}highlight=${encodeURIComponent(item.title)}`;
+            navigate(config.route + highlightParam);
+        }
         onClose();
     };
 
@@ -62,7 +77,6 @@ const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps)
 
                                 return (
                                     <div key={category} className="mb-1">
-                                        {/* Category Header */}
                                         <div className="flex items-center gap-2 px-3 py-2">
                                             <Icon className={`h-3.5 w-3.5 ${config.color}`} />
                                             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -73,7 +87,6 @@ const SearchResults = ({ results, loading, query, onClose }: SearchResultsProps)
                                             </span>
                                         </div>
 
-                                        {/* Result Items */}
                                         {items.map((item: SearchResultItem) => (
                                             <button
                                                 key={item.id}

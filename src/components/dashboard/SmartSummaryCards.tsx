@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { 
     TrendingUp, TrendingDown, Minus, AlertTriangle, 
-    CheckCircle, ClipboardList, Users, BarChart3 
+    CheckCircle, ClipboardList, Clock, BarChart3 
 } from 'lucide-react';
 import { ClassSession, LeaveRequest } from '@/types/dashboard';
 
@@ -38,7 +38,6 @@ function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string
 
 export function SmartSummaryCards({ todayClasses, leaveRequests, attendancePercent }: SmartSummaryCardsProps) {
     const stats = useMemo(() => {
-        const totalStudents = todayClasses.reduce((acc, c) => acc + (c.total_students || 0), 0);
         const completedClasses = todayClasses.filter(c => c.status === 'Completed').length;
         const totalClasses = todayClasses.length;
         const pendingLeaves = leaveRequests.filter(l => l.status === 'pending').length;
@@ -66,21 +65,21 @@ export function SmartSummaryCards({ todayClasses, leaveRequests, attendancePerce
                 color: pendingLeaves === 0 ? 'emerald' : pendingLeaves > 3 ? 'red' : 'amber',
             },
             {
-                label: 'Total Students',
-                value: totalStudents,
+                label: 'Faculty on Leave',
+                value: leaveRequests.filter(l => ['approved', 'accepted'].includes(l.status)).length,
                 suffix: '',
-                icon: Users,
+                icon: Clock,
                 trend: 'flat' as const,
-                trendText: `Across ${totalClasses} class${totalClasses !== 1 ? 'es' : ''}`,
-                color: 'primary',
+                trendText: `${totalClasses} classes scheduled today`,
+                color: leaveRequests.filter(l => ['approved', 'accepted'].includes(l.status)).length > 0 ? 'red' : 'emerald',
             },
             {
-                label: 'Schedule Progress',
-                value: totalClasses > 0 ? Math.round((completedClasses / totalClasses) * 100) : 0,
-                suffix: '%',
+                label: 'Completed Classes',
+                value: completedClasses,
+                suffix: '',
                 icon: CheckCircle,
                 trend: completedClasses === totalClasses && totalClasses > 0 ? 'up' : 'flat',
-                trendText: `${completedClasses}/${totalClasses} classes done`,
+                trendText: `${totalClasses - completedClasses} classes remaining`,
                 color: completedClasses === totalClasses && totalClasses > 0 ? 'emerald' : 'primary',
             },
         ];
@@ -109,10 +108,12 @@ export function SmartSummaryCards({ todayClasses, leaveRequests, attendancePerce
                 return (
                     <div
                         key={i}
-                        className="group relative p-4 rounded-2xl bg-card/80 dark:bg-card/60 backdrop-blur-xl border border-border/40 shadow-lg hover:shadow-xl hover:border-primary/20 transition-all duration-300 overflow-hidden"
+                        className="group relative p-4 rounded-2xl bg-card border border-border shadow-sm transition-all duration-300 overflow-hidden"
                     >
+                        {/* Gradient left accent line */}
+                        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-gradient-to-b from-primary via-amber-500 to-orange-500 opacity-60 group-hover:opacity-100 transition-opacity" />
                         {/* Subtle gradient overlay on hover */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-amber-500/[0.02] opacity-40 group-hover:opacity-100 transition-opacity" />
                         
                         <div className="relative z-10">
                             <div className="flex items-center justify-between mb-3">

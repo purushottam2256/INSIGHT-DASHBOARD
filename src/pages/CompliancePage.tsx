@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Shield, Download, Search, Calendar, Users, AlertTriangle, TrendingUp, BarChart3, FileSpreadsheet } from 'lucide-react';
+import { Download, Search, AlertTriangle, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { usePermissions } from '@/hooks/usePermissions';
 import { DEPARTMENTS } from '@/lib/constants';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+
 
 interface StudentAttendance {
   student_id: string;
@@ -20,18 +20,31 @@ interface StudentAttendance {
   attendance_percentage: number;
 }
 
-type CondonationThreshold = 50 | 60 | 75;
-type TabType = 'condonation' | 'eligibility' | 'naac' | 'workload';
+type TabType = 'condonation' | 'eligibility';
 
 export default function CompliancePage() {
   const permissions = usePermissions();
   const [activeTab, setActiveTab] = useState<TabType>('condonation');
+  const [selectedCard, setSelectedCard] = useState<'notEligible' | 'condonation' | 'eligible'>('condonation');
   const [students, setStudents] = useState<StudentAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDept, setSelectedDept] = useState<string>(permissions.isDeptScoped ? permissions.userDept || '' : '');
   const [selectedYear, setSelectedYear] = useState<string>('');
-  const [threshold, setThreshold] = useState<CondonationThreshold>(75);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Condonation range (adjustable)
+  const [condLower, setCondLower] = useState(50);
+  const [condUpper, setCondUpper] = useState(75);
+  const NOT_ELIGIBLE_THRESHOLD = 30;
+
+  // Flat condonation fee — same for everyone in range
+  const [condonationFee, setCondonationFee] = useState(5000);
+
+  // Fee: flat for anyone in range, 0 otherwise
+  const getCondonationFee = (pct: number): number => {
+    if (pct >= condLower && pct < condUpper) return condonationFee;
+    return 0;
+  };
 
   // Fetch student attendance data
   useEffect(() => {
@@ -68,10 +81,22 @@ export default function CompliancePage() {
     return result;
   }, [students, searchQuery]);
 
-  // Condonation list
+  // Condonation list (students in condonation range)
   const condonationList = useMemo(
-    () => filteredStudents.filter((s) => s.attendance_percentage < threshold && s.total_sessions > 0),
-    [filteredStudents, threshold]
+    () => filteredStudents.filter((s) => s.attendance_percentage >= condLower && s.attendance_percentage < condUpper && s.total_sessions > 0),
+    [filteredStudents, condLower, condUpper]
+  );
+
+  // Not eligible list
+  const notEligibleList = useMemo(
+    () => filteredStudents.filter((s) => s.attendance_percentage < NOT_ELIGIBLE_THRESHOLD && s.total_sessions > 0),
+    [filteredStudents]
+  );
+
+  // Eligible list (above condonation)
+  const eligibleList = useMemo(
+    () => filteredStudents.filter((s) => s.attendance_percentage >= condUpper && s.total_sessions > 0),
+    [filteredStudents, condUpper]
   );
 
   // Eligibility stats
@@ -85,79 +110,38 @@ export default function CompliancePage() {
     return { eligible, notEligible, condonationZone, total: withSessions.length };
   }, [filteredStudents]);
 
-  // Export to Excel
+  // Institutional-level summary
+  const institutionalSummary = useMemo(() => {
+    const withSessions = students.filter(s => s.total_sessions > 0);
+    const totalStudents = withSessions.length;
+    const avgAttendance = totalStudents > 0
+      ? Math.round(withSessions.reduce((sum, s) => sum + s.attendance_percentage, 0) / totalStudents)
+      : 0;
+    const eligibleCount = withSessions.filter(s => s.attendance_percentage >= 75).length;
+    const passRate = totalStudents > 0 ? Math.round((eligibleCount / totalStudents) * 100) : 0;
+    const criticalCount = withSessions.filter(s => s.attendance_percentage < 50).length;
+    return { totalStudents, avgAttendance, eligibleCount, passRate, criticalCount };
+  }, [students]);
+
+  // Export to Excel (CSV fallback)
   const exportToExcel = (data: StudentAttendance[], filename: string) => {
-    const ws = XLSX.utils.json_to_sheet(
-      data.map((s) => ({
-        'Roll No': s.roll_no,
-        'Name': s.full_name,
-        'Department': s.dept,
-        'Year': s.year,
-        'Section': s.section,
-        'Total Classes': s.total_sessions,
-        'Present': s.present_sessions,
-        'Absent': s.absent_sessions,
-        'OD': s.od_sessions,
-        'Attendance %': s.attendance_percentage,
-      }))
-    );
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Report');
-    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Report exported successfully');
-  };
-
-  // NAAC/NBA export
-  const exportNAACReport = () => {
-    const deptwise = DEPARTMENTS.map((d) => {
-      const deptStudents = students.filter((s) => s.dept === d.value && s.total_sessions > 0);
-      const avgAttendance =
-        deptStudents.length > 0
-          ? deptStudents.reduce((sum, s) => sum + s.attendance_percentage, 0) / deptStudents.length
-          : 0;
-      const defaulters = deptStudents.filter((s) => s.attendance_percentage < 75).length;
-      return {
-        'Department': d.label,
-        'Total Students': deptStudents.length,
-        'Avg Attendance %': Math.round(avgAttendance * 100) / 100,
-        'Students ≥75%': deptStudents.filter((s) => s.attendance_percentage >= 75).length,
-        'Students <75%': defaulters,
-        'Defaulter Rate %': deptStudents.length > 0 ? Math.round((defaulters / deptStudents.length) * 10000) / 100 : 0,
-      };
+    let csv = 'Roll No,Name,Department,Year,Section,Total Classes,Present,Absent,OD,Attendance %\n';
+    data.forEach(s => {
+      csv += `${s.roll_no},${s.full_name},${s.dept},${s.year},${s.section},${s.total_sessions},${s.present_sessions},${s.absent_sessions},${s.od_sessions},${s.attendance_percentage}%\n`;
     });
-
-    const wb = XLSX.utils.book_new();
-
-    // Sheet 1: Department Summary (NAAC Criterion 2.6)
-    const ws1 = XLSX.utils.json_to_sheet(deptwise);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Dept Summary (Criterion 2.6)');
-
-    // Sheet 2: Complete Student Data
-    const ws2 = XLSX.utils.json_to_sheet(
-      students.filter(s => s.total_sessions > 0).map((s) => ({
-        'Roll No': s.roll_no,
-        'Name': s.full_name,
-        'Dept': s.dept,
-        'Year': s.year,
-        'Section': s.section,
-        'Total Sessions': s.total_sessions,
-        'Present': s.present_sessions,
-        'Attendance %': s.attendance_percentage,
-        'Status': s.attendance_percentage >= 75 ? 'Eligible' : 'Not Eligible',
-      }))
-    );
-    XLSX.utils.book_append_sheet(wb, ws2, 'Student Data');
-
-    const month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
-    XLSX.writeFile(wb, `NAAC_NBA_Compliance_${month.replace(' ', '_')}.xlsx`);
-    toast.success('NAAC/NBA compliance report exported');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
+
 
   const tabs = [
     { id: 'condonation' as TabType, label: 'Condonation List', icon: AlertTriangle },
-    { id: 'eligibility' as TabType, label: '75% Eligibility', icon: TrendingUp },
-    { id: 'naac' as TabType, label: 'NAAC/NBA Export', icon: FileSpreadsheet },
-    { id: 'workload' as TabType, label: 'Faculty Scorecard', icon: Users },
+    { id: 'eligibility' as TabType, label: 'Department Compliance', icon: TrendingUp },
   ];
 
   return (
@@ -224,46 +208,67 @@ export default function CompliancePage() {
       {/* Tab Content */}
       {activeTab === 'condonation' && (
         <div className="space-y-4">
-          {/* Threshold selector */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Threshold:</span>
-            {([50, 60, 75] as CondonationThreshold[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setThreshold(t)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  threshold === t
-                    ? 'bg-destructive text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
-                &lt;{t}%
-              </button>
-            ))}
-            <div className="ml-auto">
-              <button
-                onClick={() => exportToExcel(condonationList, `Condonation_Below_${threshold}`)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                disabled={condonationList.length === 0}
-              >
-                <Download className="h-4 w-4" />
-                Export ({condonationList.length})
-              </button>
+          {/* Category Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div 
+              onClick={() => setSelectedCard('notEligible')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${selectedCard === 'notEligible' ? 'border-red-500 bg-red-500/10 ring-2 ring-red-500/20' : 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10'}`}
+            >
+              <div className="text-2xl font-bold text-red-500">{notEligibleList.length}</div>
+              <div className="text-sm text-muted-foreground">Not Eligible (&lt;{NOT_ELIGIBLE_THRESHOLD}%)</div>
+              <div className="text-[10px] text-red-400 mt-1">Detained / No condonation</div>
             </div>
+            <div 
+              onClick={() => setSelectedCard('condonation')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${selectedCard === 'condonation' ? 'border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/20' : 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10'}`}
+            >
+              <div className="text-2xl font-bold text-amber-600">{condonationList.length}</div>
+              <div className="text-sm text-muted-foreground">Condonation ({condLower}–{condUpper}%)</div>
+              <div className="text-[10px] text-amber-500 mt-1">Fee applies</div>
+            </div>
+            <div 
+              onClick={() => setSelectedCard('eligible')}
+              className={`p-4 rounded-xl border transition-all cursor-pointer hover:shadow-md ${selectedCard === 'eligible' ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/20' : 'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10'}`}
+            >
+              <div className="text-2xl font-bold text-emerald-600">{eligibleList.length}</div>
+              <div className="text-sm text-muted-foreground">Eligible (≥{condUpper}%)</div>
+              <div className="text-[10px] text-emerald-500 mt-1">Fee: ₹0</div>
+            </div>
+            <button
+              onClick={() => {
+                const list = selectedCard === 'notEligible' ? notEligibleList : selectedCard === 'eligible' ? eligibleList : condonationList;
+                exportToExcel(list, `${selectedCard}_list_${condLower}_to_${condUpper}`)
+              }}
+              disabled={
+                (selectedCard === 'notEligible' && notEligibleList.length === 0) ||
+                (selectedCard === 'condonation' && condonationList.length === 0) ||
+                (selectedCard === 'eligible' && eligibleList.length === 0)
+              }
+              className="p-4 rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-40 cursor-pointer"
+            >
+              <Download className="h-5 w-5 text-primary" />
+              <div className="text-sm font-semibold text-primary">Export CSV</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{selectedCard}</div>
+            </button>
           </div>
 
-          {/* Summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {([50, 60, 75] as const).map((t) => {
-              const count = filteredStudents.filter((s) => s.attendance_percentage < t && s.total_sessions > 0).length;
-              return (
-                <div key={t} className={`p-4 rounded-xl border ${threshold === t ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card'} premium-glow`}>
-                  <div className="text-2xl font-bold text-foreground">{count}</div>
-                  <div className="text-sm text-muted-foreground">Students below {t}%</div>
-                </div>
-              );
-            })}
+          {/* Adjustable Range + Max Fee (Only for Condonation) */}
+          {selectedCard === 'condonation' && (
+          <div className="flex flex-wrap items-end gap-4 p-4 rounded-xl bg-secondary/30 border border-border/40">
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">From %</label>
+              <input type="text" defaultValue={condLower} onBlur={e => { const v = parseInt(e.target.value) || 30; setCondLower(Math.max(NOT_ELIGIBLE_THRESHOLD, Math.min(v, condUpper - 1))); e.target.value = String(Math.max(NOT_ELIGIBLE_THRESHOLD, Math.min(v, condUpper - 1))); }} className="w-20 px-3 py-2 rounded-lg border border-border bg-card text-sm font-bold text-center" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">To %</label>
+              <input type="text" defaultValue={condUpper} onBlur={e => { const v = parseInt(e.target.value) || 75; setCondUpper(Math.max(condLower + 1, Math.min(v, 100))); e.target.value = String(Math.max(condLower + 1, Math.min(v, 100))); }} className="w-20 px-3 py-2 rounded-lg border border-border bg-card text-sm font-bold text-center" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Fee (₹)</label>
+              <input type="text" defaultValue={condonationFee} onBlur={e => { const v = parseInt(e.target.value) || 5000; setCondonationFee(Math.max(0, v)); e.target.value = String(Math.max(0, v)); }} className="w-24 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/5 text-sm font-bold text-amber-600 text-center" />
+            </div>
           </div>
+          )}
 
           {/* Table */}
           <div className="rounded-xl border border-border overflow-hidden bg-card">
@@ -274,41 +279,38 @@ export default function CompliancePage() {
                     <th className="text-left px-4 py-3 font-semibold">#</th>
                     <th className="text-left px-4 py-3 font-semibold">Roll No</th>
                     <th className="text-left px-4 py-3 font-semibold">Name</th>
-                    <th className="text-left px-4 py-3 font-semibold">Dept</th>
-                    <th className="text-center px-4 py-3 font-semibold">Year</th>
-                    <th className="text-center px-4 py-3 font-semibold">Section</th>
+                    <th className="text-center px-4 py-3 font-semibold">Class</th>
                     <th className="text-center px-4 py-3 font-semibold">Total</th>
                     <th className="text-center px-4 py-3 font-semibold">Present</th>
                     <th className="text-center px-4 py-3 font-semibold">%</th>
+                    {selectedCard === 'condonation' && <th className="text-center px-4 py-3 font-semibold">Fee</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</td></tr>
-                  ) : condonationList.length === 0 ? (
-                    <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">No students below {threshold}% threshold</td></tr>
+                    <tr><td colSpan={selectedCard === 'condonation' ? 8 : 7} className="text-center py-8 text-muted-foreground">Loading...</td></tr>
                   ) : (
-                    condonationList.map((s, i) => (
-                      <tr key={s.student_id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                        <td className="px-4 py-3 font-mono text-xs">{s.roll_no}</td>
-                        <td className="px-4 py-3 font-medium">{s.full_name}</td>
-                        <td className="px-4 py-3">{s.dept}</td>
-                        <td className="px-4 py-3 text-center">{s.year}</td>
-                        <td className="px-4 py-3 text-center">{s.section}</td>
-                        <td className="px-4 py-3 text-center">{s.total_sessions}</td>
-                        <td className="px-4 py-3 text-center">{s.present_sessions}</td>
-                        <td className={`px-4 py-3 text-center font-bold ${
-                          s.attendance_percentage < 50
-                            ? 'text-red-500'
-                            : s.attendance_percentage < 75
-                            ? 'text-amber-500'
-                            : 'text-emerald-500'
-                        }`}>
-                          {s.attendance_percentage}%
-                        </td>
-                      </tr>
-                    ))
+                    (selectedCard === 'notEligible' && notEligibleList.length === 0) ||
+                    (selectedCard === 'condonation' && condonationList.length === 0) ||
+                    (selectedCard === 'eligible' && eligibleList.length === 0)
+                  ) ? (
+                    <tr><td colSpan={selectedCard === 'condonation' ? 8 : 7} className="text-center py-8 text-muted-foreground">No students found in this category</td></tr>
+                  ) : (
+                    (selectedCard === 'notEligible' ? notEligibleList : selectedCard === 'eligible' ? eligibleList : condonationList).map((s, i) => {
+                      const fee = getCondonationFee(s.attendance_percentage);
+                      return (
+                        <tr key={s.student_id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
+                          <td className="px-4 py-3 font-mono text-xs">{s.roll_no}</td>
+                          <td className="px-4 py-3 font-medium">{s.full_name}</td>
+                          <td className="px-4 py-3 text-center font-medium text-xs">{s.year}-{s.dept.toUpperCase()}-{s.section}</td>
+                          <td className="px-4 py-3 text-center">{s.total_sessions}</td>
+                          <td className="px-4 py-3 text-center">{s.present_sessions}</td>
+                          <td className={`px-4 py-3 text-center font-bold ${selectedCard === 'notEligible' ? 'text-red-500' : selectedCard === 'eligible' ? 'text-emerald-600' : 'text-amber-600'}`}>{s.attendance_percentage}%</td>
+                          {selectedCard === 'condonation' && <td className="px-4 py-3 text-center font-bold text-red-500">₹{fee.toLocaleString()}</td>}
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -319,6 +321,32 @@ export default function CompliancePage() {
 
       {activeTab === 'eligibility' && (
         <div className="space-y-4">
+          {/* Institutional Summary */}
+          <div className="p-5 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 to-amber-500/5">
+            <h3 className="text-sm font-bold text-primary mb-3 uppercase tracking-wider">Institutional Overview</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div>
+                <div className="text-2xl font-bold text-foreground">{institutionalSummary.totalStudents}</div>
+                <div className="text-xs text-muted-foreground">Total Students</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-primary">{institutionalSummary.avgAttendance}%</div>
+                <div className="text-xs text-muted-foreground">Avg Attendance</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-emerald-600">{institutionalSummary.passRate}%</div>
+                <div className="text-xs text-muted-foreground">Pass Rate (≥75%)</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-emerald-600">{institutionalSummary.eligibleCount}</div>
+                <div className="text-xs text-muted-foreground">Eligible Students</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-red-500">{institutionalSummary.criticalCount}</div>
+                <div className="text-xs text-muted-foreground">Critical (&lt;50%)</div>
+              </div>
+            </div>
+          </div>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 premium-glow">
@@ -399,69 +427,6 @@ export default function CompliancePage() {
         </div>
       )}
 
-      {activeTab === 'naac' && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-xl border border-primary/20 bg-primary/5 glass-card">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Shield className="h-8 w-8 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold">NAAC/NBA Compliance Report</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Pre-formatted report matching NAAC Criterion 2.6 (Student Performance & Learning Outcomes)
-                  and Criterion 6.5 (Internal Quality Assurance). Includes department-wise attendance analysis,
-                  eligibility status, and defaulter statistics.
-                </p>
-                <div className="flex flex-wrap gap-3 mt-4">
-                  <button
-                    onClick={exportNAACReport}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })} Report
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-border bg-card">
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                Criterion 2.6 — Student Performance
-              </h4>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Department-wise attendance percentage</li>
-                <li>• Student eligibility status (≥75%)</li>
-                <li>• Defaulter counts and rates</li>
-                <li>• Complete student attendance data</li>
-              </ul>
-            </div>
-            <div className="p-4 rounded-xl border border-border bg-card">
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" />
-                Criterion 6.5 — Quality Assurance
-              </h4>
-              <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Attendance monitoring compliance</li>
-                <li>• Faculty engagement rates</li>
-                <li>• Institutional performance metrics</li>
-                <li>• Monthly trend analysis</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'workload' && (
-        <div className="p-8 text-center text-muted-foreground rounded-xl border border-border bg-card">
-          <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">Faculty Scorecard</p>
-          <p className="text-sm mt-1">Faculty workload analytics will populate as attendance data accumulates.</p>
-        </div>
-      )}
     </div>
   );
 }

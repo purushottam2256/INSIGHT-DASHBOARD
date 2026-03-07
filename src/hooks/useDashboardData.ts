@@ -54,7 +54,12 @@ export const useDashboardData = (filters?: DashboardFilters) => {
                 const todayStr = new Date().toISOString().split('T')[0];
 
                 // 2. Leave Requests (Client-side join to avoid 400 Bad Request on foreign key failure)
-                const { data: rawLeaves } = await supabase.from('leaves').select('*').eq('status', 'pending').limit(5);
+                const { data: rawLeaves } = await supabase
+                    .from('leaves')
+                    .select('*')
+                    .or(`status.in.(pending,pending_hod,pending_principal),and(status.in.(approved,hod_approved,accepted),start_date.lte.${todayStr},end_date.gte.${todayStr})`)
+                    .limit(20);
+                
                 let dashboardLeaves: LeaveRequest[] = []
 
                 if (rawLeaves && rawLeaves.length > 0) {

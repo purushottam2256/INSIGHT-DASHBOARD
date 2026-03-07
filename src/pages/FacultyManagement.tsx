@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Trash2, UserCog, Search, Shield } from "lucide-react"
+import { Loader2, Plus, Trash2, UserCog, Search, Shield, Edit2, X, Check } from "lucide-react"
 import { DEPARTMENTS } from "@/lib/constants"
 import { toast } from "sonner"
 
@@ -16,6 +16,8 @@ interface FacultyProfile {
   full_name: string
   role: string
   dept: string
+  is_invite?: boolean
+  status?: string
 }
 
 // HOD can assign these roles (NOT hod, principal, admin, management, developer)
@@ -38,12 +40,20 @@ export function FacultyManagement() {
   const [loading, setLoading] = useState(false)
   const [facultyList, setFacultyList] = useState<FacultyProfile[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editData, setEditData] = useState({ full_name: "", role: "", dept: "", is_invite: false })
   const [formData, setFormData] = useState({
     email: "",
     fullName: "",
     role: "faculty",
-    dept: "CSE"
+    dept: "",
+    year: "1",
+    section: "A"
   })
+
+  // List of sections (A-D) and years (1-4)
+  const YEARS = ["1", "2", "3", "4"]
+  const SECTIONS = ["A", "B", "C", "D"]
 
   const isHod = profile?.role === 'hod'
   const availableRoles = isHod ? HOD_ALLOWED_ROLES : ALL_ROLES
@@ -60,18 +70,39 @@ export function FacultyManagement() {
 
   const fetchFaculty = async () => {
     setLoading(true)
-    let query = supabase
+
+    // Fetch active profiles
+    let pQuery = supabase
       .from('profiles')
       .select('*')
       .in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod'])
       
-    if (isHod && profile?.dept) {
-        query = query.eq('dept', profile.dept)
+    if (isHod && profile?.dept) pQuery = pQuery.eq('dept', profile.dept)
+
+    const { data: pData, error: pError } = await pQuery
+
+    // Fetch pending invitations
+    let iQuery = supabase
+      .from('faculty_invitations')
+      .select('*')
+      .eq('status', 'pending')
+
+    if (isHod && profile?.dept) iQuery = iQuery.eq('dept', profile.dept)
+
+    const { data: iData, error: iError } = await iQuery
+
+    if (pError || iError) {
+      toast.error("Failed to load faculty list.")
+    } else {
+        const combined = [
+            ...(pData || []).map(p => ({ ...p, is_invite: false })),
+            ...(iData || []).map(i => ({ ...i, is_invite: true }))
+        ]
+        
+        combined.sort((a, b) => a.full_name.localeCompare(b.full_name))
+        setFacultyList(combined as FacultyProfile[])
     }
 
-    const { data, error } = await query.order('full_name')
-
-    if (!error && data) setFacultyList(data as FacultyProfile[])
     setLoading(false)
   }
 
@@ -82,12 +113,16 @@ export function FacultyManagement() {
     f.role?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Remove ${name} from the faculty list?`)) return
+  const handleDelete = async (fac: FacultyProfile) => {
+    if (!confirm(`Remove ${fac.full_name} from the system?`)) return
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', id)
+      const { error } = await supabase
+        .from(fac.is_invite ? 'faculty_invitations' : 'profiles')
+        .delete()
+        .eq('id', fac.id)
+      
       if (error) throw error
-      toast.success(`${name} removed`)
+      toast.success(`${fac.full_name} removed`)
       fetchFaculty()
     } catch (error: any) {
       toast.error("Error: " + error.message)
@@ -109,16 +144,82 @@ export function FacultyManagement() {
 
     setLoading(true)
     try {
-        // In production, this calls an Edge Function to create auth user.
-        // For now, simulate invite flow.
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        toast.success("Faculty invite sent to " + formData.email)
-        setFormData({ email: "", fullName: "", role: "faculty", dept: (isHod ? profile!.dept! : "CSE") })
+        // 1. Insert into faculty_invitations
+        const { data: inviteData, error: inviteError } = await supabase.from('faculty_invitations').insert([{
+            email: formData.email.trim().toLowerCase(),
+            full_name: formData.fullName.trim(),
+            role: formData.role,
+            dept: formData.dept,
+            year: formData.role === 'class_incharge' ? parseInt(formData.year) : null,
+            section: formData.role === 'class_incharge' ? formData.section : null,
+            invited_by: profile?.id
+        }]).select().single()
+
+        if (inviteError) {
+            if (inviteError.message?.includes('duplicate') || inviteError.code === '23505') {
+                toast.error("An invitation or profile with this email already exists.")
+                return
+            }
+            throw inviteError
+        }
+
+        // 2. Send Magic Link via Supabase Auth
+        // Redirects to the Welcome page where new faculty set their password
+        const { error: authError } = await supabase.auth.signInWithOtp({
+            email: formData.email.trim().toLowerCase(),
+            options: {
+                shouldCreateUser: true,
+                emailRedirectTo: window.location.origin + '/welcome'
+            }
+        })
+
+        if (authError) {
+            // Rollback invite if email fails
+            await supabase.from('faculty_invitations').delete().eq('id', inviteData.id)
+            throw new Error("Failed to send invitation email: " + authError.message)
+        }
+
+        toast.success(`Registration invitation sent to ${formData.fullName}`)
+        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A" })
         fetchFaculty()
+
     } catch (error: any) {
         toast.error("Error: " + error.message)
     } finally {
         setLoading(false)
+    }
+  }
+
+  const startEdit = (fac: FacultyProfile) => {
+    setEditingId(fac.id)
+    setEditData({ full_name: fac.full_name, role: fac.role, dept: fac.dept, is_invite: fac.is_invite || false })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditData({ full_name: "", role: "", dept: "", is_invite: false })
+  }
+
+  const handleUpdateFaculty = async () => {
+    if (!editingId || !editData.full_name.trim()) {
+      toast.error("Name is required")
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from(editData.is_invite ? 'faculty_invitations' : 'profiles')
+        .update({
+          full_name: editData.full_name.trim(),
+          role: editData.role,
+          dept: editData.dept,
+        })
+        .eq('id', editingId)
+      if (error) throw error
+      toast.success("Faculty updated")
+      setEditingId(null)
+      fetchFaculty()
+    } catch (error: any) {
+      toast.error("Update failed: " + error.message)
     }
   }
 
@@ -149,7 +250,7 @@ export function FacultyManagement() {
                     <CardTitle className="text-sm flex items-center gap-2">
                         <Plus className="h-3.5 w-3.5" /> Add Faculty
                     </CardTitle>
-                    <CardDescription className="text-xs">Send a platform invitation.</CardDescription>
+                    <CardDescription className="text-xs">Add faculty directly to the system.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
                     <form onSubmit={handleCreateFaculty} className="space-y-3">
@@ -186,6 +287,29 @@ export function FacultyManagement() {
                             </div>
                         </div>
 
+                        {formData.role === 'class_incharge' && (
+                            <div className="grid grid-cols-2 gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-emerald-700 dark:text-emerald-400">Class Year</Label>
+                                    <Select value={formData.year} onValueChange={(v) => setFormData({...formData, year: v})}>
+                                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {YEARS.map(y => <SelectItem key={y} value={y}>Year {y}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-emerald-700 dark:text-emerald-400">Section</Label>
+                                    <Select value={formData.section} onValueChange={(v) => setFormData({...formData, section: v})}>
+                                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {SECTIONS.map(s => <SelectItem key={s} value={s}>Section {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
+
                         {isHod && (
                             <div className="flex items-start gap-1.5 p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
                                 <Shield className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
@@ -194,6 +318,13 @@ export function FacultyManagement() {
                                 </p>
                             </div>
                         )}
+
+                        <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 flex gap-2 items-start mt-2">
+                            <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                <strong className="text-foreground">Automated Invitations:</strong> Adding a faculty member here will send them a formal registration email. When they securely log in via the provided link, their profile and role will be automatically claimed.
+                            </p>
+                        </div>
 
                         <Button type="submit" className="w-full h-8 text-sm" disabled={loading}>
                             {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
@@ -220,24 +351,76 @@ export function FacultyManagement() {
                         ) : filteredFaculty.length > 0 ? (
                             filteredFaculty.map((fac) => (
                                 <div key={fac.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors">
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                            <UserCog className="h-4 w-4 text-primary" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="font-medium text-sm truncate">{fac.full_name}</p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(fac.role)}`}>
-                                                    {fac.role?.replace('_', ' ')}
-                                                </span>
-                                                <span className="text-[10px] text-muted-foreground">{fac.dept}</span>
-                                                {fac.email && <span className="text-[10px] text-muted-foreground hidden sm:inline">• {fac.email}</span>}
+                                    {editingId === fac.id ? (
+                                        /* Inline Edit Mode */
+                                        <div className="flex-1 space-y-2">
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <Input
+                                                    value={editData.full_name}
+                                                    onChange={(e) => setEditData({ ...editData, full_name: e.target.value })}
+                                                    placeholder="Full Name"
+                                                    className="h-7 text-xs"
+                                                />
+                                                <select
+                                                    value={editData.role}
+                                                    onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+                                                    className="h-7 px-2 rounded-md border border-border bg-card text-xs"
+                                                >
+                                                    {availableRoles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                                </select>
+                                                <select
+                                                    value={editData.dept}
+                                                    onChange={(e) => setEditData({ ...editData, dept: e.target.value })}
+                                                    disabled={isHod}
+                                                    className={`h-7 px-2 rounded-md border border-border bg-card text-xs ${isHod ? 'opacity-60' : ''}`}
+                                                >
+                                                    {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.value}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <Button size="sm" className="h-6 text-[10px] px-2 gap-1" onClick={handleUpdateFaculty}>
+                                                    <Check className="h-3 w-3" /> Save
+                                                </Button>
+                                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 gap-1" onClick={cancelEdit}>
+                                                    <X className="h-3 w-3" /> Cancel
+                                                </Button>
                                             </div>
                                         </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(fac.id, fac.full_name)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
+                                    ) : (
+                                        /* Display Mode */
+                                        <>
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <UserCog className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <div className="min-w-0 flex-1 flex flex-col items-start">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-medium text-sm truncate">{fac.full_name}</p>
+                                                        {fac.is_invite && (
+                                                            <span className="px-1.5 py-0.5 rounded-sm bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[9px] font-bold uppercase tracking-wider">
+                                                                Pending Invite
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-0.5 transform origin-left scale-95">
+                                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(fac.role)}`}>
+                                                            {fac.role?.replace('_', ' ')}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground font-medium">{fac.dept}</span>
+                                                        {fac.email && <span className="text-[10px] text-muted-foreground hidden sm:inline">• {fac.email}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 shrink-0">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(fac)}>
+                                                    <Edit2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(fac)}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             ))
                         ) : (

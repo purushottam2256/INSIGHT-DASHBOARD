@@ -73,7 +73,7 @@ export default function AuditLogPage() {
       <div className="flex justify-end">
         <button
           onClick={exportAuditLog}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:bg-primary/90 shadow-sm transition-all hover:shadow-md"
         >
           <Download className="h-4 w-4" />
           Export
@@ -81,11 +81,11 @@ export default function AuditLogPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap gap-3 items-center p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-border bg-card text-sm"
+          className="px-3 py-2 rounded-xl border border-border/50 bg-secondary/30 text-sm font-medium"
         >
           {CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
@@ -97,14 +97,14 @@ export default function AuditLogPage() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border bg-card text-sm"
+            className="px-3 py-2 rounded-xl border border-border/50 bg-secondary/30 text-sm font-medium"
           />
-          <span className="text-muted-foreground">to</span>
+          <span className="text-muted-foreground text-sm font-medium">to</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border bg-card text-sm"
+            className="px-3 py-2 rounded-xl border border-border/50 bg-secondary/30 text-sm font-medium"
           />
         </div>
         <div className="relative flex-1 min-w-[200px]">
@@ -114,31 +114,33 @@ export default function AuditLogPage() {
             placeholder="Search actions, users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-card text-sm"
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-border/50 bg-secondary/30 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
           />
         </div>
       </div>
 
       {/* Stats */}
-      <div className="text-sm text-muted-foreground">
-        Showing {entries.length} entries
+      <div className="text-sm text-muted-foreground font-medium">
+        Showing <span className="font-bold text-foreground">{entries.length}</span> entries
       </div>
 
       {/* Log entries */}
       <div className="space-y-2">
         {entries.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground rounded-xl border border-border bg-card">
-            <Shield className="h-12 w-12 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">No audit entries yet</p>
+          <div className="p-16 text-center text-muted-foreground rounded-2xl border-2 border-dashed border-border/40 bg-secondary/10">
+            <div className="w-20 h-20 rounded-3xl bg-primary/5 flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-10 w-10 text-primary/30" />
+            </div>
+            <p className="font-bold text-foreground text-lg">No audit entries yet</p>
             <p className="text-sm mt-1">Actions will be logged as you use the dashboard</p>
           </div>
         ) : (
           entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex items-start gap-4 p-4 rounded-xl border border-border bg-card hover:bg-muted/30 transition-colors premium-glow"
+              className="flex items-start gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-muted/20 transition-all shadow-sm hover:shadow-md"
             >
-              <div className={`px-2 py-1 rounded-md text-xs font-bold ${categoryColors[entry.category] || categoryColors.other}`}>
+              <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ring-1 ${categoryColors[entry.category] || categoryColors.other}`}>
                 {entry.category}
               </div>
               <div className="flex-1 min-w-0">

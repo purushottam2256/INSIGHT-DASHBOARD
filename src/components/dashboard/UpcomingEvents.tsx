@@ -21,7 +21,7 @@ const UpcomingEvents = ({ events }: UpcomingEventsProps) => {
   const navigate = useNavigate();
 
   return (
-    <Card className="h-full border-border/50 shadow-xl flex flex-col overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30 transition-all hover:shadow-2xl">
+    <Card className="h-full bg-card border border-border shadow-sm flex flex-col overflow-hidden rounded-2xl transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
             <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                 <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">

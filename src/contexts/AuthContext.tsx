@@ -77,7 +77,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!adminError && adminData) {
         setRole(adminData.role as UserRole)
-        setProfile({ id: userId, role: adminData.role })
+        
+        // Fetch supplemental profile details (like dept) for elevated roles
+        const { data: profileSupplemental } = await supabase
+          .from("profiles")
+          .select("dept, full_name")
+          .eq("id", userId)
+          .single()
+
+        setProfile({ 
+          id: userId, 
+          role: adminData.role,
+          dept: profileSupplemental?.dept || null,
+          full_name: profileSupplemental?.full_name || null 
+        })
         return
       }
 

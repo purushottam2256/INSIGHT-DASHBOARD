@@ -12,7 +12,7 @@ interface CurrentODsProps {
 
 const CurrentODs = ({ students }: CurrentODsProps) => {
     return (
-        <Card className="h-full border-border/50 shadow-xl flex flex-col overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30 transition-all hover:shadow-2xl hover:bg-card/90 dark:hover:bg-card/70">
+        <Card className="h-full bg-card border border-border shadow-sm flex flex-col overflow-hidden rounded-2xl transition-all hover:shadow-md">
             <CardHeader className="pb-3 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                 <CardTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
                     <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/15 text-primary backdrop-blur-sm ring-1 ring-primary/20">

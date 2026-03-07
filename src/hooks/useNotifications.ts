@@ -166,6 +166,39 @@ export function useNotifications() {
         return data || [];
     }, [role, dept]);
 
+    // Delete a single notification
+    const deleteNotification = useCallback(async (notificationId: string) => {
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('id', notificationId);
+
+        if (!error) {
+            setNotifications(prev => {
+                const notif = prev.find(n => n.id === notificationId);
+                if (notif && !notif.is_read) setUnreadCount(c => Math.max(0, c - 1));
+                return prev.filter(n => n.id !== notificationId);
+            });
+        }
+    }, []);
+
+    // Delete multiple notifications
+    const deleteMultiple = useCallback(async (ids: string[]) => {
+        if (ids.length === 0) return;
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .in('id', ids);
+
+        if (!error) {
+            setNotifications(prev => {
+                const unreadDeleted = prev.filter(n => ids.includes(n.id) && !n.is_read).length;
+                setUnreadCount(c => Math.max(0, c - unreadDeleted));
+                return prev.filter(n => !ids.includes(n.id));
+            });
+        }
+    }, []);
+
     return {
         notifications,
         loading,
@@ -173,6 +206,8 @@ export function useNotifications() {
         fetchNotifications,
         markAsRead,
         markAllAsRead,
+        deleteNotification,
+        deleteMultiple,
         send,
         getFacultyList,
         canSendToAll: ['management', 'principal', 'developer', 'admin'].includes(role || ''),

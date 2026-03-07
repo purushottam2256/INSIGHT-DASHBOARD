@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { 
-    TrendingUp, Download, 
-    Calendar, Layers, GitCompareArrows, AlertCircle
+import {
+    TrendingUp, 
+    Calendar, Layers, AlertCircle, RotateCcw
 } from 'lucide-react';
 import {
-    LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    Tooltip, Legend, ResponsiveContainer, Area, AreaChart
+    BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    Tooltip, Legend, ResponsiveContainer, Area, AreaChart,
+    PieChart, Pie, Cell
 } from 'recharts';
-import { Button } from '@/components/ui/button';
 import {
     Select,
     SelectContent,
@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserRole } from '@/hooks/useUserRole';
 
-type ChartType = 'line' | 'bar' | 'area';
+type ChartType = 'area' | 'bar' | 'stacked' | 'hbar' | 'pie';
 type TimePeriod = '7' | '14' | '30';
 
 interface CompareData {
@@ -36,6 +36,7 @@ export function ComparePage() {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<CompareData[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [deptFilter, setDeptFilter] = useState<string>('all');
 
     const colors = [
         'hsl(28, 90%, 48%)',   // primary orange
@@ -44,6 +45,10 @@ export function ComparePage() {
         'hsl(45, 93%, 47%)',   // golden
         'hsl(0, 72%, 51%)',    // red
         'hsl(262, 83%, 58%)',  // purple
+        'hsl(173, 58%, 39%)',  // teal
+        'hsl(199, 89%, 48%)',  // sky blue
+        'hsl(330, 81%, 60%)',  // pink
+        'hsl(142, 71%, 45%)',  // green
     ];
 
     // Fetch available classes from attendance_sessions
@@ -52,8 +57,7 @@ export function ComparePage() {
             try {
                 let query = supabase
                     .from('attendance_sessions')
-                    .select('target_dept, target_year, target_section')
-                    .limit(500);
+                    .select('target_dept, target_year, target_section');
 
                 const isHOD = role === 'hod' && dept;
                 if (isHOD) {
@@ -150,11 +154,27 @@ export function ComparePage() {
         fetchData();
     }, [fetchData]);
 
+    // Filter available classes by dept
+    const filteredAvailableClasses = useMemo(() => {
+        if (deptFilter === 'all') return availableClasses;
+        return availableClasses.filter(cls => cls.startsWith(deptFilter + '-'));
+    }, [availableClasses, deptFilter]);
+
+    // Get unique depts from available classes
+    const availableDepts = useMemo(() => {
+        const depts = new Set<string>();
+        availableClasses.forEach(cls => {
+            const dept = cls.split('-')[0];
+            if (dept) depts.add(dept);
+        });
+        return Array.from(depts).sort();
+    }, [availableClasses]);
+
     const toggleClass = (cls: string) => {
         setSelectedClasses(prev => 
             prev.includes(cls) 
                 ? prev.filter(c => c !== cls) 
-                : prev.length < 5 ? [...prev, cls] : prev
+                : [...prev, cls]
         );
     };
 
@@ -173,31 +193,18 @@ export function ComparePage() {
             margin: { top: 5, right: 20, left: -10, bottom: 5 },
         };
 
-        const lines = selectedClasses.map((cls, i) => {
+        const elements = selectedClasses.map((cls, i) => {
             if (chartType === 'bar') {
                 return <Bar key={cls} dataKey={cls} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} barSize={20} />;
             }
-            if (chartType === 'area') {
-                return (
-                    <Area
-                        key={cls}
-                        type="monotone"
-                        dataKey={cls}
-                        stroke={colors[i % colors.length]}
-                        fill={colors[i % colors.length]}
-                        fillOpacity={0.1}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 2 }}
-                    />
-                );
-            }
             return (
-                <Line
+                <Area
                     key={cls}
                     type="monotone"
                     dataKey={cls}
                     stroke={colors[i % colors.length]}
+                    fill={colors[i % colors.length]}
+                    fillOpacity={0.1}
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 2 }}
@@ -205,7 +212,7 @@ export function ComparePage() {
             );
         });
 
-        const Chart = chartType === 'bar' ? BarChart : chartType === 'area' ? AreaChart : LineChart;
+        const Chart = chartType === 'bar' ? BarChart : AreaChart;
 
         return (
             <ResponsiveContainer width="100%" height={380}>
@@ -241,30 +248,106 @@ export function ComparePage() {
                         height={36}
                         formatter={(value) => <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{value}</span>}
                     />
-                    {lines}
+                    {elements}
                 </Chart>
+            </ResponsiveContainer>
+        );
+    };
+
+    const renderRadarChart = () => {
+        // Stacked bar: each date shows a stacked bar of present% vs absent%
+        const stackedData = data.map(d => {
+            const entry: any = { date: d.date };
+            selectedClasses.forEach(cls => {
+                entry[`${cls}`] = d[cls] as number;
+                entry[`${cls}_absent`] = 100 - (d[cls] as number || 0);
+            });
+            return entry;
+        });
+        return (
+            <ResponsiveContainer width="100%" height={380}>
+                <BarChart data={stackedData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                    <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                    <Tooltip
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '12px', padding: '12px 16px' }}
+                        formatter={(value: number, name: string) => [name.endsWith('_absent') ? null : `${value}%`, name.endsWith('_absent') ? null : name]}
+                    />
+                    <Legend verticalAlign="top" height={36} formatter={(value) => value.endsWith('_absent') ? null : <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>{value}</span>} />
+                    {selectedClasses.map((cls, i) => (
+                        <Bar key={cls} dataKey={cls} stackId={cls} fill={colors[i % colors.length]} radius={[0, 0, 0, 0]} barSize={18} />
+                    ))}
+                    {selectedClasses.map((cls, i) => (
+                        <Bar key={`${cls}_absent`} dataKey={`${cls}_absent`} stackId={cls} fill={colors[i % colors.length]} fillOpacity={0.15} radius={[4, 4, 0, 0]} barSize={18} name={`${cls}_absent`} />
+                    ))}
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    };
+
+    const renderScatterChart = () => {
+        // Horizontal bar: class averages as horizontal bars
+        const hbarData = averages.map(a => ({ cls: a.cls, avg: a.avg })).reverse();
+        return (
+            <ResponsiveContainer width="100%" height={380}>
+                <BarChart data={hbarData} layout="vertical" margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                    <YAxis type="category" dataKey="cls" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }} width={55} />
+                    <Tooltip
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '12px', padding: '12px 16px' }}
+                        formatter={(value: number) => [`${value}%`, 'Avg Attendance']}
+                    />
+                    <Bar dataKey="avg" radius={[0, 6, 6, 0]} barSize={24}>
+                        {hbarData.map((entry, i) => (
+                            <Cell key={i} fill={entry.avg >= 75 ? 'hsl(142, 71%, 45%)' : entry.avg >= 65 ? 'hsl(45, 93%, 47%)' : 'hsl(0, 72%, 51%)'} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    };
+
+    const renderPieChart = () => {
+        const pieData = averages.filter(a => a.avg > 0);
+        return (
+            <ResponsiveContainer width="100%" height={380}>
+                <PieChart>
+                    <Pie
+                        data={pieData}
+                        dataKey="avg"
+                        nameKey="cls"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={140}
+                        innerRadius={60}
+                        paddingAngle={2}
+                        label={({ cls, avg }) => `${cls}: ${avg}%`}
+                        labelLine={{ strokeWidth: 1 }}
+                    >
+                        {pieData.map((_, i) => (
+                            <Cell key={i} fill={colors[i % colors.length]} />
+                        ))}
+                    </Pie>
+                    <Tooltip
+                        contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '12px',
+                            padding: '12px 16px',
+                        }}
+                        formatter={(value: number) => [`${value}%`, 'Avg Attendance']}
+                    />
+                    <Legend />
+                </PieChart>
             </ResponsiveContainer>
         );
     };
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Page Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                        <GitCompareArrows className="h-6 w-6 text-primary" />
-                        Attendance Comparison
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Compare real attendance trends across classes and sections
-                    </p>
-                </div>
-                <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-                    <Download className="h-4 w-4" />
-                    Export
-                </Button>
-            </div>
+
 
             {/* Controls Bar */}
             <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl bg-card border border-border/50 shadow-sm">
@@ -283,7 +366,9 @@ export function ComparePage() {
 
                 {/* Chart Type */}
                 <div className="flex items-center bg-secondary/40 rounded-xl p-0.5 border border-border/40">
-                    {(['area', 'line', 'bar'] as ChartType[]).map(type => (
+                    {(['area', 'bar', 'stacked', 'hbar', 'pie'] as ChartType[]).map(type => {
+                        const labels: Record<string, string> = { area: 'Area', bar: 'Bar', stacked: 'Stacked', hbar: 'H-Bar', pie: 'Pie' };
+                        return (
                         <button
                             key={type}
                             onClick={() => setChartType(type)}
@@ -293,10 +378,31 @@ export function ComparePage() {
                                     : 'text-muted-foreground hover:text-foreground'
                             }`}
                         >
-                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                            {labels[type]}
                         </button>
-                    ))}
+                    )})}
                 </div>
+
+                {/* Separator */}
+                <div className="h-6 w-px bg-border/60 hidden sm:block" />
+
+                {/* Dept Filter */}
+                <Select 
+                    value={role === 'hod' && dept ? dept : deptFilter} 
+                    onValueChange={setDeptFilter}
+                    disabled={role === 'hod'}
+                >
+                    <SelectTrigger className="w-36 rounded-xl bg-secondary/40 border-border/40">
+                        <Layers className="h-4 w-4 text-muted-foreground mr-2" />
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Depts</SelectItem>
+                        {availableDepts.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 {/* Separator */}
                 <div className="h-6 w-px bg-border/60 hidden sm:block" />
@@ -304,10 +410,10 @@ export function ComparePage() {
                 {/* Class Selection Pills */}
                 <div className="flex flex-wrap items-center gap-1.5">
                     <Layers className="h-4 w-4 text-muted-foreground mr-1" />
-                    {availableClasses.length === 0 && !loading && (
+                    {filteredAvailableClasses.length === 0 && !loading && (
                         <span className="text-xs text-muted-foreground italic">No classes found</span>
                     )}
-                    {availableClasses.map(cls => (
+                    {filteredAvailableClasses.map(cls => (
                         <button
                             key={cls}
                             onClick={() => toggleClass(cls)}
@@ -320,6 +426,16 @@ export function ComparePage() {
                             {cls}
                         </button>
                     ))}
+                {/* Reset button */}
+                {selectedClasses.length > 0 && (
+                    <button
+                        onClick={() => setSelectedClasses([])}
+                        className="px-2.5 py-1 rounded-lg text-xs font-medium border border-destructive/30 text-destructive hover:bg-destructive/10 transition-all"
+                    >
+                        <RotateCcw className="h-3 w-3 inline mr-1" />
+                        Reset
+                    </button>
+                )}
                 </div>
             </div>
 
@@ -328,6 +444,26 @@ export function ComparePage() {
                 <div className="flex items-center gap-2 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {error}
+                </div>
+            )}
+
+            {/* Stats Summary Cards — ABOVE chart */}
+            {averages.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {averages.map(({ cls, avg }, i) => (
+                        <div 
+                            key={cls} 
+                            className="p-4 rounded-xl bg-card border border-border/50 shadow-sm text-center group hover:border-primary/30 transition-all duration-200"
+                        >
+                            <div 
+                                className="w-3 h-3 rounded-full mx-auto mb-2 shadow-sm"
+                                style={{ backgroundColor: colors[i % colors.length] }}
+                            />
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{cls}</p>
+                            <p className={`text-2xl font-bold ${avg >= 75 ? 'text-emerald-600' : avg >= 65 ? 'text-amber-600' : avg > 0 ? 'text-red-600' : 'text-foreground'}`}>{avg > 0 ? `${avg}%` : '—'}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">Avg. Attendance</p>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -350,33 +486,19 @@ export function ComparePage() {
                         <div className="text-center">
                             <Layers className="h-10 w-10 mx-auto mb-3 opacity-30" />
                             <p className="text-sm font-medium">Select classes above to compare</p>
-                            <p className="text-xs text-muted-foreground/60 mt-1">Choose up to 5 classes</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Select classes to compare</p>
                         </div>
                     </div>
+                ) : chartType === 'pie' ? (
+                    renderPieChart()
+                ) : chartType === 'stacked' ? (
+                    renderRadarChart()
+                ) : chartType === 'hbar' ? (
+                    renderScatterChart()
                 ) : (
                     renderChart()
                 )}
             </div>
-
-            {/* Stats Summary Cards */}
-            {averages.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {averages.map(({ cls, avg }, i) => (
-                        <div 
-                            key={cls} 
-                            className="p-4 rounded-xl bg-card border border-border/50 shadow-sm text-center group hover:border-primary/30 transition-all duration-200"
-                        >
-                            <div 
-                                className="w-3 h-3 rounded-full mx-auto mb-2 shadow-sm"
-                                style={{ backgroundColor: colors[i % colors.length] }}
-                            />
-                            <p className="text-xs font-medium text-muted-foreground mb-1">{cls}</p>
-                            <p className="text-2xl font-bold text-foreground">{avg > 0 ? `${avg}%` : '—'}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">Avg. Attendance</p>
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

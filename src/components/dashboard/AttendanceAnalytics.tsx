@@ -216,7 +216,7 @@ const AttendanceAnalytics = ({ sessions = [], onFilterChange, loading }: Attenda
     }, [dept]);
 
     return (
-        <Card className="col-span-1 border-border/50 shadow-xl h-full flex flex-col overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30 transition-all hover:shadow-2xl hover:bg-card/90 dark:hover:bg-card/70">
+        <Card className="col-span-1 bg-card border border-border shadow-sm h-full flex flex-col overflow-hidden rounded-2xl transition-all duration-300 z-10">
             <CardHeader className="pb-4 space-y-4 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                 {/* Layer 1: Scope Filters (Top Row) */}
                 <div className="flex flex-col gap-3">

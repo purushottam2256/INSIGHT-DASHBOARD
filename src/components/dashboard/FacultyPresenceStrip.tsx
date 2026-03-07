@@ -29,7 +29,7 @@ export function FacultyPresenceStrip() {
                 const { data: leaves } = await supabase
                     .from('leaves')
                     .select('user_id')
-                    .in('status', ['approved', 'accepted'])
+                    .in('status', ['approved', 'accepted', 'pending_principal'])
                     .lte('start_date', today)
                     .gte('end_date', today);
 
@@ -61,7 +61,7 @@ export function FacultyPresenceStrip() {
 
     if (loading) {
         return (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/80 dark:bg-card/60 border border-border/40">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
                 <div className="animate-pulse flex gap-2">
                     {Array.from({ length: 8 }).map((_, i) => (
                         <div key={i} className="w-9 h-9 rounded-full bg-muted shimmer" />
@@ -74,7 +74,7 @@ export function FacultyPresenceStrip() {
     if (faculty.length === 0) return null;
 
     return (
-        <div className="px-4 py-3 rounded-2xl bg-card/80 dark:bg-card/60 backdrop-blur-xl border border-border/40 shadow-lg">
+        <div className="px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">

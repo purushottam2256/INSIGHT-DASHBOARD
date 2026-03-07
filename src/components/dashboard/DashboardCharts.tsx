@@ -79,7 +79,7 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
 
     if (type === "attendance-donut") {
         return (
-            <Card className="border-border/50 shadow-xl h-full overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30">
+            <Card className="bg-card border border-border shadow-sm h-full overflow-hidden rounded-2xl transition-all duration-300">
                 <CardHeader className="pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                     <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                         <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
@@ -165,7 +165,7 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
         }, [todayClasses]);
         
         return (
-            <Card className="border-border/50 shadow-xl h-full overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30">
+            <Card className="bg-card border border-border shadow-sm h-full overflow-hidden rounded-2xl transition-all duration-300">
                 <CardHeader className="pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                     <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                         <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">

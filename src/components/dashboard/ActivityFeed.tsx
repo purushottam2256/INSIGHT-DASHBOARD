@@ -77,7 +77,7 @@ export function ActivityFeed() {
                 // 3. Recent events added
                 const { data: events } = await supabase
                     .from('holidays')
-                    .select('id, title, type, created_at')
+                    .select('id, name, created_at')
                     .order('created_at', { ascending: false })
                     .limit(3);
 
@@ -85,8 +85,8 @@ export function ActivityFeed() {
                     items.push({
                         id: `event-${e.id}`,
                         type: 'event_added',
-                        title: `${e.type === 'holiday' ? '🎉 Holiday' : e.type === 'exam' ? '📝 Exam' : '📅 Event'}: ${e.title}`,
-                        description: `Added to academic calendar`,
+                        title: `🎉 Holiday: ${e.name}`,
+                        description: `Added to calendar`,
                         timestamp: e.created_at,
                     });
                 });
@@ -126,7 +126,7 @@ export function ActivityFeed() {
     }, []);
 
     return (
-        <div className="rounded-2xl bg-card/80 dark:bg-card/60 backdrop-blur-xl border border-border/40 shadow-lg overflow-hidden">
+        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden transition-all duration-300 z-10">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                 <div className="flex items-center gap-2">

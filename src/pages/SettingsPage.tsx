@@ -1,481 +1,424 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
-    User, Bell, Shield, Calendar, Palette, Info, 
+    User, Shield, Palette, Info, 
     Save, Camera, Mail, Building2,
-    Sun, Moon, BellRing, Plus, Trash2, Loader2,
-    CalendarDays, PartyPopper, GraduationCap, Send
+    Sun, Moon, Loader2,
+    Lock, Key, ChevronRight, CheckCircle2
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDashboardData } from '@/hooks/useDashboardData';
-import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/lib/supabase';
-import { sendNotificationToAll, sendNotificationToDept } from '@/lib/fcm';
-import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { useTheme } from '@/components/theme-provider';
+import { motion, AnimatePresence } from 'framer-motion';
+import collegeLogo from '@/assets/collage-logo.png';
 
-interface CalendarEvent {
-    id: string;
-    date: string;
-    type: 'holiday' | 'exam' | 'event';
-    title: string;
-    description: string | null;
-    created_at: string;
-}
+
 
 export function SettingsPage() {
     const { profile } = useDashboardData();
-    const { role, dept } = useUserRole();
+    const { theme, setTheme } = useTheme();
     const [activeTab, setActiveTab] = useState('profile');
-
-    const settingsTabs = [
-        { value: 'profile', label: 'Profile', icon: User },
-        { value: 'notifications', label: 'Notifications', icon: Bell },
-        { value: 'holidays', label: 'Holidays & Events', icon: CalendarDays },
-        { value: 'appearance', label: 'Appearance', icon: Palette },
-        { value: 'about', label: 'About', icon: Info },
-    ];
-
-    return (
-        <div className="space-y-6 animate-fade-in">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="w-full flex flex-wrap justify-start bg-card border border-border/50 rounded-2xl p-1.5 h-auto gap-1">
-                    {settingsTabs.map(tab => {
-                        const Icon = tab.icon;
-                        return (
-                            <TabsTrigger 
-                                key={tab.value} 
-                                value={tab.value} 
-                                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-200"
-                            >
-                                <Icon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{tab.label}</span>
-                            </TabsTrigger>
-                        );
-                    })}
-                </TabsList>
-
-                {/* === Profile Tab === */}
-                <TabsContent value="profile" className="mt-6 space-y-6">
-                    <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-card border border-border/50 shadow-sm">
-                        <div className="relative group">
-                            <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-                                <AvatarImage src={profile?.avatar_url} />
-                                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-primary text-2xl font-bold">
-                                    {profile?.full_name?.charAt(0) || 'U'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                                <Camera className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="text-center sm:text-left flex-1">
-                            <h3 className="text-xl font-bold text-foreground">{profile?.full_name || 'User'}</h3>
-                            <p className="text-sm text-muted-foreground flex items-center gap-2 justify-center sm:justify-start mt-1">
-                                <Mail className="h-3.5 w-3.5" />
-                                {profile?.email || 'Loading...'}
-                            </p>
-                            <div className="flex items-center gap-2 mt-2 justify-center sm:justify-start">
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                                    {profile?.role || 'User'}
-                                </span>
-                                {profile?.dept && (
-                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-accent text-accent-foreground border border-border/30">
-                                        <Building2 className="h-2.5 w-2.5 inline mr-1" />
-                                        {profile.dept}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 space-y-5">
-                        <h3 className="text-sm font-semibold text-foreground mb-4">Personal Information</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-muted-foreground">Full Name</label>
-                                <Input defaultValue={profile?.full_name || ''} className="rounded-xl bg-secondary/30 border-border/40 focus:border-primary/40" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-muted-foreground">Email</label>
-                                <Input defaultValue={profile?.email || ''} disabled className="rounded-xl bg-secondary/30 border-border/40 opacity-60" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-muted-foreground">Department</label>
-                                <Input defaultValue={profile?.dept || ''} disabled className="rounded-xl bg-secondary/30 border-border/40 opacity-60" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-muted-foreground">Role</label>
-                                <Input defaultValue={profile?.role || ''} disabled className="rounded-xl bg-secondary/30 border-border/40 opacity-60" />
-                            </div>
-                        </div>
-                        <div className="flex justify-end pt-2">
-                            <Button className="rounded-xl gap-2">
-                                <Save className="h-4 w-4" />
-                                Save Changes
-                            </Button>
-                        </div>
-                    </div>
-                </TabsContent>
-
-                {/* === Notifications Tab === */}
-                <TabsContent value="notifications" className="mt-6 space-y-4">
-                    <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6">
-                        <h3 className="text-sm font-semibold text-foreground mb-5">Notification Preferences</h3>
-                        {[
-                            { icon: BellRing, title: 'Leave Request Updates', desc: 'Get notified when leave requests are approved or declined', default: true },
-                            { icon: Bell, title: 'Attendance Alerts', desc: 'Daily attendance summary and low attendance warnings', default: true },
-                            { icon: Calendar, title: 'Event Reminders', desc: 'Upcoming academic events and holidays', default: false },
-                            { icon: Shield, title: 'Security Alerts', desc: 'Login notifications and password changes', default: true },
-                        ].map((item, i) => (
-                            <NotificationToggle key={i} {...item} />
-                        ))}
-                    </div>
-                </TabsContent>
-
-                {/* === Holidays & Events Tab === */}
-                <TabsContent value="holidays" className="mt-6 space-y-4">
-                    <HolidaysEventsSection role={role} dept={dept} />
-                </TabsContent>
-
-                {/* === Appearance Tab === */}
-                <TabsContent value="appearance" className="mt-6 space-y-4">
-                    <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6">
-                        <h3 className="text-sm font-semibold text-foreground mb-5">Display Settings</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                                { name: 'Light', icon: Sun, bg: 'bg-gradient-to-br from-amber-50 to-orange-50', border: 'border-amber-200' },
-                                { name: 'Dark', icon: Moon, bg: 'bg-gradient-to-br from-gray-900 to-gray-800', border: 'border-gray-700', textClass: 'text-white' },
-                            ].map(theme => {
-                                const Icon = theme.icon;
-                                return (
-                                    <button key={theme.name} className={`p-5 rounded-xl border-2 ${theme.bg} ${theme.border} transition-all duration-200 hover:shadow-md text-left group`}>
-                                        <Icon className={`h-8 w-8 mb-3 ${theme.textClass || 'text-foreground'}`} />
-                                        <p className={`font-semibold ${theme.textClass || 'text-foreground'}`}>{theme.name}</p>
-                                        <p className={`text-xs mt-1 ${theme.textClass ? 'text-gray-400' : 'text-muted-foreground'}`}>
-                                            {theme.name === 'Light' ? 'Warm and bright' : 'Easy on the eyes'}
-                                        </p>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </TabsContent>
-
-                {/* === About Tab === */}
-                <TabsContent value="about" className="mt-6 space-y-4">
-                    <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
-                            <svg viewBox="0 0 24 24" className="w-8 h-8 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                                <path d="M2 17l10 5 10-5" />
-                                <path d="M2 12l10 5 10-5" />
-                            </svg>
-                        </div>
-                        <h3 className="text-xl font-bold text-foreground">INSIGHT Dashboard</h3>
-                        <p className="text-sm text-muted-foreground mt-1">Empowering Education</p>
-                        <div className="mt-6 space-y-3 text-left max-w-sm mx-auto">
-                            {[
-                                { label: 'Version', value: 'v2.0.0 (Phase 5)' },
-                                { label: 'Framework', value: 'React + Vite' },
-                                { label: 'Database', value: 'Supabase PostgreSQL' },
-                                { label: 'License', value: 'MIT' },
-                            ].map(item => (
-                                <div key={item.label} className="flex justify-between items-center py-2 border-b border-border/30">
-                                    <span className="text-xs text-muted-foreground">{item.label}</span>
-                                    <span className="text-xs font-medium text-foreground">{item.value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </TabsContent>
-            </Tabs>
-        </div>
-    );
-}
-
-// === Holidays & Events CRUD Section ===
-function HolidaysEventsSection({ role, dept }: { role: string | null; dept: string | null }) {
-    const [events, setEvents] = useState<CalendarEvent[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [showForm, setShowForm] = useState(false);
-    const [notifyOnSave, setNotifyOnSave] = useState(true);
     
-    // Form state
-    const [formTitle, setFormTitle] = useState('');
-    const [formDate, setFormDate] = useState('');
-    const [formType, setFormType] = useState<'holiday' | 'exam' | 'event'>('holiday');
-    const [formDesc, setFormDesc] = useState('');
+    // Profile State
+    const [fullName, setFullName] = useState('');
+    const [savingProfile, setSavingProfile] = useState(false);
+    
+    // Avatar State
+    const [avatarUrl, setAvatarUrl] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-    const canSendAll = ['management', 'principal', 'developer', 'admin'].includes(role || '');
+    // Password State
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [updatingPassword, setUpdatingPassword] = useState(false);
 
-    const typeConfig = {
-        holiday: { icon: PartyPopper, color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', label: 'Holiday' },
-        exam: { icon: GraduationCap, color: 'bg-blue-500/10 text-blue-600 border-blue-500/20', label: 'Exam' },
-        event: { icon: CalendarDays, color: 'bg-primary/10 text-primary border-primary/20', label: 'Event' },
-    };
+    useEffect(() => {
+        if (profile?.full_name) setFullName(profile.full_name);
+        if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
+    }, [profile]);
 
-    const fetchEvents = useCallback(async () => {
-        setLoading(true);
-        const { data, error } = await supabase
-            .from('holidays')
-            .select('*')
-            .gte('date', new Date().toISOString().split('T')[0])
-            .order('date', { ascending: true })
-            .limit(50);
-
-        if (!error) setEvents(data || []);
-        setLoading(false);
-    }, []);
-
-    useEffect(() => { fetchEvents(); }, [fetchEvents]);
-
-    const handleAdd = async () => {
-        if (!formTitle.trim() || !formDate) return;
-        setSaving(true);
-
+    // Handle Profile Update
+    const handleSaveProfile = async () => {
+        if (!profile?.id) return;
+        setSavingProfile(true);
         try {
             const { error } = await supabase
-                .from('holidays')
-                .insert([{
-                    title: formTitle.trim(),
-                    date: formDate,
-                    type: formType,
-                    description: formDesc.trim() || null,
-                }]);
+                .from('profiles')
+                .update({ full_name: fullName.trim() })
+                .eq('id', profile.id);
 
             if (error) throw error;
-
-            // Send FCM notification
-            if (notifyOnSave) {
-                const msgBody = `📅 ${formType === 'holiday' ? 'Holiday' : formType === 'exam' ? 'Exam' : 'Event'}: ${formTitle.trim()} on ${format(new Date(formDate), 'MMM d, yyyy')}`;
-                try {
-                    if (canSendAll) {
-                        await sendNotificationToAll({
-                            title: `New ${formType.charAt(0).toUpperCase() + formType.slice(1)} Added`,
-                            body: msgBody,
-                            type: 'management_update',
-                            priority: 'normal',
-                        });
-                    } else if (dept) {
-                        await sendNotificationToDept(dept, {
-                            title: `New ${formType.charAt(0).toUpperCase() + formType.slice(1)} Added`,
-                            body: msgBody,
-                            type: 'management_update',
-                            priority: 'normal',
-                        });
-                    }
-                } catch (fcmErr) {
-                    console.warn('FCM send failed:', fcmErr);
-                }
-            }
-
-            // Reset form
-            setFormTitle('');
-            setFormDate('');
-            setFormDesc('');
-            setShowForm(false);
-            fetchEvents();
+            toast.success('Profile updated successfully');
         } catch (err: any) {
-            alert('Failed to add event: ' + err.message);
+            toast.error(err.message || 'Failed to update profile');
         } finally {
-            setSaving(false);
+            setSavingProfile(false);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this event?')) return;
-        const { error } = await supabase.from('holidays').delete().eq('id', id);
-        if (!error) setEvents(prev => prev.filter(e => e.id !== id));
+    // Handle Avatar Upload (Base64)
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !profile?.id) return;
+
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+            toast.error('Image must be less than 2MB');
+            return;
+        }
+
+        setUploadingAvatar(true);
+        try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = error => reject(error);
+            });
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({ avatar_url: base64 })
+                .eq('id', profile.id);
+
+            if (error) throw error;
+            setAvatarUrl(base64);
+            toast.success('Profile picture updated successfully');
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to update profile picture');
+        } finally {
+            setUploadingAvatar(false);
+        }
     };
 
+    // Handle Password Update
+    const handleUpdatePassword = async () => {
+        if (password !== confirmPassword) {
+            toast.error('Passwords do not match');
+            return;
+        }
+        if (password.length < 6) {
+            toast.error('Password must be at least 6 characters');
+            return;
+        }
+
+        setUpdatingPassword(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password });
+            if (error) throw error;
+            toast.success('Password updated successfully');
+            setPassword('');
+            setConfirmPassword('');
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to update password');
+        } finally {
+            setUpdatingPassword(false);
+        }
+    };
+
+    const settingsTabs = [
+        { value: 'profile', label: 'My Profile', icon: User, desc: 'Personal details and avatar' },
+        { value: 'appearance', label: 'Appearance', icon: Palette, desc: 'Theme preferences' },
+        { value: 'security', label: 'Security', icon: Shield, desc: 'Password and authentication' },
+        { value: 'about', label: 'About', icon: Info, desc: 'App info and versions' },
+    ];
+
     return (
-        <>
-            {/* Add Event Card */}
-            <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4 text-primary" />
-                        Holidays & Events
-                    </h3>
-                    <Button
-                        variant={showForm ? 'secondary' : 'default'}
-                        size="sm"
-                        className="rounded-xl gap-1.5 text-xs"
-                        onClick={() => setShowForm(!showForm)}
+        <div className="flex flex-col md:flex-row gap-6 animate-fade-in relative min-h-[700px] w-full">
+            {/* Sidebar Navigation */}
+            <div className="md:w-64 shrink-0 space-y-1 bg-card rounded-3xl border border-border/50 p-3 h-fit shadow-sm">
+                <div className="px-3 py-4 border-b border-border/50 mb-3">
+                    <h3 className="text-base font-bold text-foreground">Settings</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Manage your account</p>
+                </div>
+                {settingsTabs.map(tab => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.value;
+                    return (
+                        <button 
+                            key={tab.value}
+                            onClick={() => setActiveTab(tab.value)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 text-left group relative outline-none ${
+                                isActive 
+                                    ? 'bg-primary/10 text-primary shadow-sm' 
+                                    : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+                            }`}
+                        >
+                            {isActive && (
+                                <motion.div 
+                                    layoutId="active-tab-indicator" 
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" 
+                                />
+                            )}
+                            <div className={`p-2 rounded-xl transition-colors duration-300 ${isActive ? 'bg-primary/20 shadow-inner' : 'bg-transparent group-hover:bg-secondary'}`}>
+                                <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                                <p className={`text-sm font-semibold transition-colors duration-300 ${isActive ? 'text-primary' : ''}`}>{tab.label}</p>
+                            </div>
+                            <ChevronRight className={`h-4 w-4 transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 min-w-0">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="space-y-6"
                     >
-                        {showForm ? 'Cancel' : <><Plus className="h-3.5 w-3.5" /> Add Event</>}
-                    </Button>
-                </div>
+                        {/* PROFILE CONTENT */}
+                        {activeTab === 'profile' && (
+                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                {/* Decorative background blur */}
+                                <div className="absolute top-0 right-0 w-72 h-72 bg-primary/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+                                
+                                <h3 className="text-xl font-bold text-foreground mb-8">Profile Details</h3>
+                                
+                                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
+                                    {/* Avatar Column */}
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                            <Avatar className="h-32 w-32 ring-4 ring-primary/10 shadow-2xl transition-all duration-500 group-hover:ring-primary/40 group-hover:shadow-primary/20">
+                                                <AvatarImage src={avatarUrl} className="object-cover" />
+                                                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-primary text-4xl font-black">
+                                                    {profile?.full_name?.charAt(0) || 'U'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            
+                                            {/* Hover Overlay */}
+                                            <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white backdrop-blur-sm">
+                                                <Camera className="h-6 w-6 mb-1" />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider">Change</span>
+                                            </div>
 
-                {/* Add Form */}
-                {showForm && (
-                    <div className="p-4 rounded-xl bg-secondary/20 border border-border/30 mb-4 space-y-3 animate-fade-in">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-muted-foreground">Title</label>
-                                <Input
-                                    placeholder="e.g. Republic Day"
-                                    value={formTitle}
-                                    onChange={e => setFormTitle(e.target.value)}
-                                    className="rounded-xl bg-card border-border/40 text-sm"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-medium text-muted-foreground">Date</label>
-                                <Input
-                                    type="date"
-                                    value={formDate}
-                                    onChange={e => setFormDate(e.target.value)}
-                                    className="rounded-xl bg-card border-border/40 text-sm"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Type Selector */}
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Type</label>
-                            <div className="flex gap-2">
-                                {(['holiday', 'exam', 'event'] as const).map(t => (
-                                    <button
-                                        key={t}
-                                        onClick={() => setFormType(t)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all capitalize ${
-                                            formType === t
-                                                ? typeConfig[t].color + ' shadow-sm'
-                                                : 'border-border/40 text-muted-foreground hover:text-foreground'
-                                        }`}
-                                    >
-                                        {t}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">Description (optional)</label>
-                            <Input
-                                placeholder="Brief description..."
-                                value={formDesc}
-                                onChange={e => setFormDesc(e.target.value)}
-                                className="rounded-xl bg-card border-border/40 text-sm"
-                            />
-                        </div>
-
-                        {/* Notify Toggle */}
-                        <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                                <button
-                                    onClick={() => setNotifyOnSave(!notifyOnSave)}
-                                    className={`w-8 h-4.5 rounded-full relative transition-all ${
-                                        notifyOnSave ? 'bg-gradient-to-r from-primary to-amber-500' : 'bg-muted'
-                                    }`}
-                                >
-                                    <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all ${
-                                        notifyOnSave ? 'left-[16px]' : 'left-0.5'
-                                    }`} />
-                                </button>
-                                <Send className="h-3 w-3" />
-                                Notify all faculty via FCM
-                            </label>
-
-                            <Button
-                                onClick={handleAdd}
-                                disabled={saving || !formTitle.trim() || !formDate}
-                                size="sm"
-                                className="rounded-xl gap-1.5"
-                            >
-                                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                                {saving ? 'Saving...' : 'Add'}
-                            </Button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Events List */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    </div>
-                ) : events.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                        <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                        <p className="text-sm">No upcoming events</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">Add holidays, exams, or events above</p>
-                    </div>
-                ) : (
-                    <div className="grid gap-2">
-                        {events.map(event => {
-                            const config = typeConfig[event.type as keyof typeof typeConfig] || typeConfig.event;
-                            return (
-                                <div key={event.id} className="flex items-center gap-4 p-3 rounded-xl bg-secondary/20 border border-border/30 hover:bg-secondary/40 transition-colors group">
-                                    <div className="w-12 text-center shrink-0">
-                                        <p className="text-xs font-bold text-foreground">
-                                            {format(new Date(event.date), 'd')}
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground uppercase">
-                                            {format(new Date(event.date), 'MMM')}
-                                        </p>
+                                            <button 
+                                                disabled={uploadingAvatar}
+                                                className="absolute bottom-1 right-1 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100 z-10"
+                                            >
+                                                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                            </button>
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef} 
+                                                onChange={handleAvatarChange} 
+                                                accept="image/*" 
+                                                className="hidden" 
+                                            />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Avatar</p>
+                                            <p className="text-[10px] text-muted-foreground/60 mt-1">JPEG, PNG (Max 2MB)</p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-foreground truncate">{event.title}</p>
-                                        {event.description && (
-                                            <p className="text-[11px] text-muted-foreground truncate mt-0.5">{event.description}</p>
-                                        )}
+
+                                    {/* Form Column */}
+                                    <div className="flex-1 w-full space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Full Name</label>
+                                                <Input 
+                                                    value={fullName} 
+                                                    onChange={e => setFullName(e.target.value)} 
+                                                    className="rounded-2xl h-12 bg-secondary/30 border-border/50 focus-visible:ring-2 focus-visible:ring-primary/50 shadow-sm transition-all text-base px-4" 
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Email Address</label>
+                                                <div className="relative">
+                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                    <Input 
+                                                        defaultValue={profile?.email || ''} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-secondary/30 border-border/50 opacity-60 pl-11 text-base cursor-not-allowed" 
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Department</label>
+                                                <div className="relative">
+                                                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                    <Input 
+                                                        defaultValue={profile?.dept || 'N/A'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-secondary/30 border-border/50 opacity-60 pl-11 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Role Designation</label>
+                                                <div className="relative">
+                                                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                                                    <Input 
+                                                        defaultValue={profile?.role?.toUpperCase() || ''} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-primary/5 border-primary/20 text-primary font-bold pl-11 text-base cursor-not-allowed" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-end pt-6">
+                                            <Button 
+                                                onClick={handleSaveProfile} 
+                                                disabled={savingProfile || fullName.trim() === profile?.full_name} 
+                                                className="rounded-2xl gap-2 h-12 px-8 shadow-auto bg-gradient-to-r from-primary to-primary/80 hover:scale-105 active:scale-95 transition-all text-base font-bold text-white relative overflow-hidden group"
+                                            >
+                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
+                                                {savingProfile ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Save className="h-5 w-5 relative z-10" />}
+                                                <span className="relative z-10">{savingProfile ? 'Saving...' : 'Save Changes'}</span>
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border ${config.color} shrink-0`}>
-                                        {event.type}
-                                    </span>
-                                    <button
-                                        onClick={() => handleDelete(event.id)}
-                                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </>
-    );
-}
+                            </div>
+                        )}
 
-// Notification Toggle Component
-function NotificationToggle({ icon: Icon, title, desc, default: defaultOn }: {
-    icon: any;
-    title: string;
-    desc: string;
-    default: boolean;
-}) {
-    const [enabled, setEnabled] = useState(defaultOn);
-    
-    return (
-        <div className="flex items-center justify-between py-4 border-b border-border/30 last:border-b-0">
-            <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Icon className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                    <p className="text-sm font-medium text-foreground">{title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-                </div>
+                        {/* SECURITY CONTENT */}
+                        {activeTab === 'security' && (
+                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-72 h-72 bg-red-500/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+                                <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-red-500/10 text-red-500">
+                                        <Lock className="h-5 w-5" />
+                                    </div>
+                                    Security & Password
+                                </h3>
+                                <p className="text-sm text-muted-foreground mb-8">Ensure your account is using a long, random password to stay secure.</p>
+                                
+                                <div className="max-w-md space-y-5 bg-secondary/20 p-6 rounded-3xl border border-border/40">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">New Password</label>
+                                        <div className="relative">
+                                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <Input 
+                                                type="password"
+                                                value={password}
+                                                onChange={e => setPassword(e.target.value)}
+                                                placeholder="Min. 6 characters"
+                                                className="rounded-2xl h-12 bg-card border-border/50 pl-11 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Confirm Password</label>
+                                        <div className="relative">
+                                            <CheckCircle2 className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${confirmPassword && password === confirmPassword ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                                            <Input 
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={e => setConfirmPassword(e.target.value)}
+                                                placeholder="Re-enter new password"
+                                                className="rounded-2xl h-12 bg-card border-border/50 pl-11 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="pt-2">
+                                        <Button 
+                                            onClick={handleUpdatePassword} 
+                                            disabled={updatingPassword || !password || !confirmPassword || password !== confirmPassword} 
+                                            className="rounded-2xl gap-2 w-full h-12 shadow-md hover:shadow-lg transition-all text-base font-bold"
+                                        >
+                                            {updatingPassword ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
+                                            {updatingPassword ? 'Updating...' : 'Update Password'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* APPEARANCE CONTENT */}
+                        {activeTab === 'appearance' && (
+                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+                                <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                                        <Palette className="h-5 w-5" />
+                                    </div>
+                                    Appearance
+                                </h3>
+                                <p className="text-sm text-muted-foreground mb-8">Customize the look and feel of your Insight Dashboard.</p>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+                                    {[
+                                        { name: 'Light', icon: Sun, bg: 'bg-gradient-to-br from-white to-amber-50/50', border: 'border-amber-200/60 dark:border-border/50', value: 'light' },
+                                        { name: 'Dark', icon: Moon, bg: 'bg-gradient-to-br from-gray-900 to-gray-800', border: 'border-gray-700', textClass: 'text-white', value: 'dark' },
+                                    ].map(t => {
+                                        const Icon = t.icon;
+                                        const isActive = theme === t.value || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches === (t.value === 'dark'));
+                                        return (
+                                            <button 
+                                                key={t.name} 
+                                                onClick={() => setTheme(t.value as any)}
+                                                className={`p-6 rounded-[2rem] border-2 ${t.bg} ${isActive ? 'border-primary shadow-xl ring-4 ring-primary/20 scale-[1.03]' : t.border} transition-all duration-300 hover:shadow-lg hover:scale-[1.01] text-left group relative outline-none`}
+                                            >
+                                                {isActive && (
+                                                    <motion.div layoutId="theme-active" className="absolute top-5 right-5 w-5 h-5 rounded-full bg-primary shadow-lg flex items-center justify-center">
+                                                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                                    </motion.div>
+                                                )}
+                                                <div className={`w-14 h-14 rounded-2xl mb-5 flex items-center justify-center ${isActive ? 'bg-primary/20 text-primary shadow-inner' : 'bg-black/5 dark:bg-white/5'} transition-colors duration-300 group-hover:rotate-12`}>
+                                                    <Icon className={`h-7 w-7 ${isActive ? 'text-primary' : (t.textClass || 'text-foreground')}`} />
+                                                </div>
+                                                <p className={`text-xl font-black ${t.textClass || 'text-foreground'}`}>{t.name} Mode</p>
+                                                <p className={`text-sm mt-2 font-medium leading-relaxed ${t.textClass ? 'text-gray-400' : 'text-muted-foreground'}`}>
+                                                    {t.name === 'Light' ? 'Clean, bright, and highly legible for well-lit environments.' : 'Sleek, modern, and easy on the eyes for extended focus.'}
+                                                </p>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+
+                        {/* ABOUT CONTENT */}
+                        {activeTab === 'about' && (
+                            <div className="p-6 md:p-12 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden text-center group">
+                                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-amber-500/5 -z-10 transition-opacity duration-700 opacity-50 group-hover:opacity-100" />
+                                
+                                <motion.div 
+                                    initial={{ scale: 0.8, rotate: -5 }} 
+                                    animate={{ scale: 1, rotate: 0 }} 
+                                    transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                                    className="w-28 h-28 rounded-[2rem] overflow-hidden mx-auto mb-8 shadow-2xl shadow-primary/30 ring-4 ring-primary/10"
+                                >
+                                    <img src={collegeLogo} alt="INSIGHT Logo" className="w-full h-full object-cover" />
+                                </motion.div>
+                                
+                                <h3 className="text-3xl font-black text-foreground tracking-tight">INSIGHT</h3>
+                                <p className="text-sm font-bold text-primary tracking-[0.2em] uppercase mt-2 mb-6">Empowering Education</p>
+                                <p className="text-xs text-muted-foreground mb-10">Built for <span className="font-bold text-foreground">MRCE</span> — Malla Reddy College of Engineering</p>
+                                
+                                <div className="max-w-md mx-auto space-y-3">
+                                    {[
+                                        { label: 'Version', value: 'v1.0.0' },
+                                        { label: 'Framework', value: 'React + Vite + Tailwind' },
+                                        { label: 'Database', value: 'Supabase PostgreSQL' },
+                                        { label: 'Mobile App', value: 'Attend-Me (React Native)' },
+                                    ].map(item => (
+                                        <div key={item.label} className="flex justify-between items-center p-4 rounded-2xl bg-secondary/40 border border-border/40 hover:bg-secondary/70 transition-all hover:scale-[1.01] shadow-sm">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{item.label}</span>
+                                            <span className="text-sm font-black text-foreground">{item.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <p className="mt-10 text-sm text-muted-foreground">Made with <span className="text-red-500">❤️</span> by <span className="font-bold text-foreground">PJ</span></p>
+                            </div>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
             </div>
-            <button
-                onClick={() => setEnabled(!enabled)}
-                className={`relative w-11 h-6 rounded-full transition-all duration-300 ${
-                    enabled 
-                        ? 'bg-gradient-to-r from-primary to-amber-500 shadow-sm shadow-primary/20' 
-                        : 'bg-muted'
-                }`}
-            >
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300 ${
-                    enabled ? 'left-[22px]' : 'left-0.5'
-                }`} />
-            </button>
         </div>
     );
 }

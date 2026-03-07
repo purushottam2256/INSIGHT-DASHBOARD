@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Megaphone, Send, Clock, Trash2 } from 'lucide-react';
+import { Megaphone, Send, Clock, Trash2, Search, User } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { DEPARTMENTS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 interface Broadcast {
@@ -33,15 +34,20 @@ const TEMPLATES = [
 export default function AdminBroadcastPage() {
   const permissions = usePermissions();
   const { logAction } = useAuditLog();
+  const isHod = permissions.userRole === 'hod';
+  const hodDept = permissions.userDept;
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [priority, setPriority] = useState<'normal' | 'important' | 'urgent'>('normal');
-  const [audience, setAudience] = useState('all');
+  const [audience, setAudience] = useState(isHod && hodDept ? hodDept : 'all');
   const [sending, setSending] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
+  const [facultyList, setFacultyList] = useState<{id: string; full_name: string; dept: string}[]>([]);
+  const [selectedFacultyId, setSelectedFacultyId] = useState('');
+  const [facultySearch, setFacultySearch] = useState('');
 
-  // Load broadcasts from localStorage
+  // Load broadcasts from localStorage + faculty list
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('insight_broadcasts') || '[]');
@@ -49,6 +55,14 @@ export default function AdminBroadcastPage() {
     } catch {
       setBroadcasts([]);
     }
+    // Load faculty
+    const loadFaculty = async () => {
+      let query = supabase.from('profiles').select('id, full_name, dept').in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']).order('full_name');
+      if (isHod && hodDept) query = query.eq('dept', hodDept);
+      const { data } = await query;
+      setFacultyList(data || []);
+    };
+    loadFaculty();
   }, []);
 
   const saveBroadcasts = (items: Broadcast[]) => {
@@ -61,14 +75,21 @@ export default function AdminBroadcastPage() {
       toast.error('Title and message are required');
       return;
     }
+    if (audience === 'specific_faculty' && !selectedFacultyId) {
+      toast.error('Please select a faculty member');
+      return;
+    }
     setSending(true);
+
+    const selectedFaculty = audience === 'specific_faculty' ? facultyList.find(f => f.id === selectedFacultyId) : null;
+    const audienceLabel = audience === 'specific_faculty' && selectedFaculty ? `Faculty: ${selectedFaculty.full_name}` : audience;
 
     const newBroadcast: Broadcast = {
       id: crypto.randomUUID(),
       title: title.trim(),
       message: message.trim(),
       priority,
-      audience,
+      audience: audienceLabel,
       sentBy: permissions.userRole || 'admin',
       sentByRole: permissions.userRole || 'admin',
       timestamp: new Date().toISOString(),
@@ -174,18 +195,73 @@ export default function AdminBroadcastPage() {
               <label className="text-sm font-medium mb-1 block">Audience</label>
               <select
                 value={audience}
-                onChange={(e) => setAudience(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm"
+                onChange={(e) => { setAudience(e.target.value); setSelectedFacultyId(''); setFacultySearch(''); }}
+                className={`w-full px-3 py-2 rounded-lg border border-border bg-card text-sm`}
               >
-                <option value="all">All (HODs + Faculty)</option>
-                <option value="hods">HODs Only</option>
-                <option value="faculty">Faculty Only</option>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d.value} value={d.value}>{d.label} Dept Only</option>
-                ))}
+                {isHod && hodDept ? (
+                  <>
+                    <option value={hodDept}>{hodDept.toUpperCase()} Dept (All)</option>
+                    <option value="specific_faculty">Specific Faculty</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="all">All (HODs + Faculty)</option>
+                    <option value="hods">HODs Only</option>
+                    <option value="faculty">Faculty Only</option>
+                    <option value="specific_faculty">Specific Faculty</option>
+                    {DEPARTMENTS.map((d) => (
+                      <option key={d.value} value={d.value}>{d.label} Dept Only</option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
           </div>
+
+          {/* Faculty Picker — shown when 'specific_faculty' audience is selected */}
+          {audience === 'specific_faculty' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium mb-1 block flex items-center gap-1.5">
+                <User className="h-4 w-4 text-primary" />
+                Select Faculty Member
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  value={facultySearch}
+                  onChange={(e) => setFacultySearch(e.target.value)}
+                  placeholder="Search by name..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-card text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-card divide-y divide-border/50">
+                {facultyList
+                  .filter(f => !facultySearch.trim() || f.full_name.toLowerCase().includes(facultySearch.toLowerCase()))
+                  .map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setSelectedFacultyId(f.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 ${
+                        selectedFacultyId === f.id ? 'bg-primary/10 font-semibold text-primary' : ''
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                        selectedFacultyId === f.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {f.full_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div>{f.full_name}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{f.dept}</div>
+                      </div>
+                    </button>
+                  ))}
+                {facultyList.filter(f => !facultySearch.trim() || f.full_name.toLowerCase().includes(facultySearch.toLowerCase())).length === 0 && (
+                  <div className="px-4 py-3 text-xs text-muted-foreground text-center">No matching faculty found.</div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button

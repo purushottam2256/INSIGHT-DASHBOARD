@@ -18,12 +18,13 @@ import {
   Shield,
   BarChart3,
   Megaphone,
-  Layers,
   AlertTriangle,
+  UserSearch,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import logo from "@/assets/logo.png";
 import { usePermissions, getRoleInfo } from "@/hooks/usePermissions";
 
 interface SidebarProps {
@@ -40,8 +41,9 @@ interface NavItem {
   name: string;
   href: string;
   icon: any;
-  requiredPermission?: string; // key from usePermissions
-  danger?: boolean; // red-zone items
+  requiredPermission?: string;
+  danger?: boolean;
+  hiddenForRoles?: string[];
 }
 
 interface NavGroup {
@@ -62,15 +64,15 @@ export default function Sidebar({
   const permissions = usePermissions();
   const roleInfo = getRoleInfo(permissions.userRole);
 
-  // ── Permission-filtered navigation groups ──
+  // ── Navigation groups ──
   const navGroups: NavGroup[] = [
     {
       label: "Core",
       items: [
         { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-        { name: "Registration", href: "/registration", icon: GraduationCap },
-        { name: "Timetable", href: "/timetable", icon: Clock },
-        { name: "Attendance", href: "/attendance-manager", icon: CalendarCheck },
+        { name: "Registration", href: "/registration", icon: GraduationCap, hiddenForRoles: ['principal'] },
+        { name: "Timetable", href: "/timetable", icon: Clock, hiddenForRoles: ['principal'] },
+        { name: "Monthly Overview", href: "/attendance-manager", icon: CalendarCheck },
         { name: "Leave Manager", href: "/leaves", icon: CalendarDays },
       ],
     },
@@ -86,7 +88,7 @@ export default function Sidebar({
     {
       label: "Management",
       items: [
-        { name: "Sections", href: "/sections", icon: Layers, requiredPermission: "canMergeSplitSections" },
+        { name: "Overview", href: "/overview", icon: UserSearch, requiredPermission: "canViewReports" },
         { name: "Calendar", href: "/calendar", icon: CalendarRange, requiredPermission: "canEditCalendar" },
         { name: "Broadcast", href: "/broadcast", icon: Megaphone, requiredPermission: "canAdminBroadcast" },
       ],
@@ -102,11 +104,12 @@ export default function Sidebar({
     },
   ];
 
-  // Filter items by permission
+  // Filter by permission + role
   const filteredGroups = navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        if (item.hiddenForRoles?.includes(permissions.userRole || '')) return false;
         if (!item.requiredPermission) return true;
         return (permissions as any)[item.requiredPermission] === true;
       }),
@@ -114,44 +117,23 @@ export default function Sidebar({
     .filter((group) => group.items.length > 0);
 
   const SidebarContent = (
-    <div className="flex flex-col h-full sidebar-glass transition-all duration-500 relative overflow-hidden">
-      {/* Animated gradient accent line at top */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-60 sidebar-shimmer-line" />
-
-      {/* Subtle mesh background overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 50%, hsl(28, 90%, 48%) 0%, transparent 50%), radial-gradient(circle at 80% 20%, hsl(33, 95%, 55%) 0%, transparent 50%)",
-        }}
-      />
+    <div className="flex flex-col h-full bg-sidebar/80 backdrop-blur-2xl border-r border-white/10 dark:border-white/5 shadow-2xl transition-all duration-500 relative overflow-hidden z-20">
+      {/* ── Ambient Sidebar Orbs ── */}
+      <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/20 blur-[70px] pointer-events-none -z-10" />
+      <div className="absolute top-1/2 -right-24 w-64 h-64 bg-orange-500/15 blur-[80px] pointer-events-none -z-10" />
+      <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/20 blur-[70px] pointer-events-none -z-10" />
 
       {/* ── Brand Section ── */}
       <div
         className={cn(
-          "shrink-0 border-b border-border/40 dark:border-white/[0.06] transition-all duration-300 relative",
+          "shrink-0 border-b border-white/5 transition-all duration-300 relative",
           isCollapsed ? "px-2 py-4" : "px-5 py-5",
         )}
       >
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <div className="absolute inset-0 rounded-xl bg-primary/20 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center shrink-0 shadow-lg shadow-primary/20 relative z-10 transition-transform duration-300 group-hover:scale-105">
-              <svg
-                viewBox="0 0 24 24"
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
+        <Link to="/dashboard" onClick={closeMobileMenu} className="flex items-center gap-3.5 cursor-pointer group/brand">
+          <div className="relative flex items-center justify-center shrink-0">
+            <div className="absolute inset-0 rounded-xl bg-primary/20 blur-lg opacity-0 group-hover/brand:opacity-100 transition-opacity duration-500" />
+            <img src={logo} alt="INSIGHT Logo" className="w-[44px] h-[44px] relative z-10 transition-transform duration-300 group-hover/brand:scale-105 drop-shadow-md object-contain rounded-xl overflow-hidden" />
           </div>
           <div
             className={cn(
@@ -159,7 +141,7 @@ export default function Sidebar({
               isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100",
             )}
           >
-            <h2 className="text-lg font-extrabold tracking-tight leading-none sidebar-brand-text">
+            <h2 className="text-xl font-black tracking-tight leading-none sidebar-brand-text font-display">
               INSIGHT
             </h2>
             <p className="text-[9px] text-muted-foreground/70 font-medium tracking-[0.12em] mt-0.5 flex items-center gap-1">
@@ -167,43 +149,34 @@ export default function Sidebar({
               Empowering Education
             </p>
           </div>
-        </div>
+        </Link>
       </div>
 
-      {/* ── User Profile Card ── */}
+      {/* ── User Profile Card + Collapse Toggle ── */}
       <div
         className={cn(
           "border-b border-border/40 dark:border-white/[0.06] transition-all duration-300",
-          isCollapsed ? "px-2 py-3 flex justify-center" : "px-4 py-4",
+          isCollapsed ? "px-2 py-3" : "px-4 py-4",
         )}
       >
-        <div
+        {/* Profile Card / Link */}
+        <Link
+          to="/settings"
+          onClick={closeMobileMenu}
           className={cn(
-            "flex items-center gap-3 transition-all duration-300",
-            !isCollapsed && "sidebar-user-card rounded-xl px-3 py-2.5",
-            isCollapsed && "justify-center",
+            "flex flex-1 items-center gap-3 w-full hover:bg-foreground/5 transition-colors duration-200 rounded-xl",
+            isCollapsed ? "justify-center p-2" : "px-3 py-2",
           )}
         >
-          <div className="relative group">
-            <div
-              className={cn(
-                "absolute inset-0 rounded-full bg-gradient-to-br from-primary to-amber-500 blur-md transition-all duration-500",
-                isCollapsed ? "opacity-0" : "opacity-20 group-hover:opacity-40",
-              )}
-            />
-            <Avatar
-              className={cn(
-                "ring-2 ring-primary/30 transition-all duration-300 relative z-10",
-                isCollapsed ? "h-8 w-8" : "h-11 w-11",
-                "group-hover:ring-primary/50",
-              )}
-            >
-              <AvatarImage src={userImage} />
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-primary font-bold text-sm">
-                {userName?.charAt(0) || "U"}
-              </AvatarFallback>
-            </Avatar>
-          </div>
+          <Avatar className={cn(
+            "border-2 border-background shadow-xs shrink-0 transition-all duration-300",
+            isCollapsed ? "h-10 w-10 ring-2 ring-primary/20 ring-offset-1 ring-offset-background" : "h-[38px] w-[38px]",
+          )}>
+            <AvatarImage src={userImage} className="object-cover" />
+            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+              {userName?.charAt(0) || "U"}
+            </AvatarFallback>
+          </Avatar>
           <div
             className={cn(
               "flex flex-col overflow-hidden transition-all duration-300",
@@ -223,23 +196,42 @@ export default function Sidebar({
               </span>
             </div>
           </div>
-        </div>
+        </Link>
+
+        {/* Collapse Button — Right below profile */}
+        <button
+          onClick={toggleSidebar}
+          className={cn(
+            "hidden md:flex items-center gap-2 w-full px-3 py-1.5 rounded-lg mt-2 transition-all duration-200 cursor-pointer",
+            "text-muted-foreground hover:text-foreground hover:bg-foreground/5 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10 text-[11px]",
+            isCollapsed && "justify-center",
+          )}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="h-4 w-4 shrink-0" />
+          ) : (
+            <>
+              <PanelLeftClose className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Collapse</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* ── Navigation (Grouped + Filtered) ── */}
       <ScrollArea className="flex-1 py-3">
-        <nav className="space-y-4 px-2">
+        <nav className="space-y-4 pl-3 py-2 pr-0">
           {filteredGroups.map((group) => (
             <div key={group.label}>
               {/* Group label */}
               {!isCollapsed && (
-                <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.15em] px-3 mb-1.5">
+                <p className="text-[9px] font-bold text-white/50 uppercase tracking-[0.15em] px-3 mb-1.5">
                   {group.label}
                 </p>
               )}
-              {isCollapsed && <div className="h-px bg-border/30 mx-2 mb-1.5" />}
+              {isCollapsed && <div className="h-px bg-white/10 mx-2 mb-1.5" />}
               
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive =
@@ -252,54 +244,38 @@ export default function Sidebar({
                       to={item.href}
                       onClick={closeMobileMenu}
                       title={isCollapsed ? item.name : undefined}
+                      className="block"
                     >
-                      <div
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl transition-all duration-200 group cursor-pointer relative",
-                          isCollapsed ? "px-3 py-2.5 justify-center" : "px-3 py-2.5",
-                          isActive
-                            ? "sidebar-nav-active"
-                            : "text-muted-foreground hover:text-foreground hover:bg-accent/50 dark:hover:bg-white/[0.04]",
-                          item.danger && !isActive && "text-red-500/70 hover:text-red-500 hover:bg-red-500/5",
-                        )}
-                      >
-                        {isActive && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-full bg-gradient-to-b from-primary to-amber-500 shadow-[0_0_8px_hsl(28,90%,48%,0.5)] sidebar-active-glow" />
-                        )}
                         <div
                           className={cn(
-                            "relative flex items-center justify-center transition-all duration-200",
-                            isActive && !item.danger && "text-primary",
-                            isActive && item.danger && "text-red-500",
-                            !isActive && "group-hover:scale-110",
+                            "flex items-center gap-3 transition-all duration-300 group cursor-pointer relative",
+                            isCollapsed ? "py-2.5 justify-center mx-2 rounded-xl" : "pl-4 pr-3 py-2.5 rounded-xl mx-2",
+                            isActive
+                              ? "bg-gradient-to-r from-primary/20 to-primary/5 border border-primary/20 text-primary font-bold shadow-sm backdrop-blur-sm"
+                              : "text-sidebar-foreground/70 hover:text-primary hover:bg-sidebar-foreground/5",
+                            item.danger && !isActive && "text-red-400 hover:text-red-500 hover:bg-red-500/10",
                           )}
                         >
-                          <Icon className="h-[18px] w-[18px] shrink-0 relative z-10" />
-                          {isActive && (
+                          <div
+                            className={cn(
+                              "relative flex items-center justify-center transition-all duration-200",
+                              isActive && !item.danger && "text-primary",
+                              isActive && item.danger && "text-red-500",
+                              !isActive && "group-hover:scale-110",
+                            )}
+                          >
+                            <Icon className={cn("shrink-0", isCollapsed ? "h-[22px] w-[22px]" : "h-[18px] w-[18px]")} />
+                          </div>
+                          {!isCollapsed && <span className="text-[13px] tracking-wide">{item.name}</span>}
+                          {isActive && !isCollapsed && (
                             <div className={cn(
-                              "absolute inset-0 rounded-lg blur-sm scale-150",
-                              item.danger ? "bg-red-500/10" : "bg-primary/10"
+                              "ml-auto w-1.5 h-1.5 rounded-full shadow-sm",
+                              item.danger
+                                ? "bg-red-500 shadow-red-500/40"
+                                : "bg-primary shadow-primary/40"
                             )} />
                           )}
                         </div>
-                        <span
-                          className={cn(
-                            "font-medium text-[13px] relative z-10 transition-all duration-300 whitespace-nowrap",
-                            isCollapsed ? "w-0 opacity-0 hidden" : "w-auto opacity-100",
-                            isActive && "font-semibold text-foreground",
-                          )}
-                        >
-                          {item.name}
-                        </span>
-                        {isActive && !isCollapsed && (
-                          <div className={cn(
-                            "ml-auto w-1.5 h-1.5 rounded-full shadow-lg",
-                            item.danger
-                              ? "bg-red-500 shadow-red-500/60"
-                              : "bg-primary shadow-[0_0_6px_hsl(28,90%,48%,0.6)]"
-                          )} />
-                        )}
-                      </div>
                     </Link>
                   );
                 })}
@@ -309,34 +285,13 @@ export default function Sidebar({
         </nav>
       </ScrollArea>
 
-      {/* ── Collapse Toggle ── */}
-      <div className="border-t border-border/40 dark:border-white/[0.06] px-2 py-2 hidden md:block">
-        <button
-          onClick={toggleSidebar}
-          className={cn(
-            "flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer",
-            "text-muted-foreground/70 hover:text-foreground hover:bg-accent/50 dark:hover:bg-white/[0.04]",
-            isCollapsed && "justify-center",
-          )}
-        >
-          {isCollapsed ? (
-            <PanelLeftOpen className="h-[18px] w-[18px] shrink-0" />
-          ) : (
-            <>
-              <PanelLeftClose className="h-[18px] w-[18px] shrink-0" />
-              <span className="font-medium text-[13px]">Collapse</span>
-            </>
-          )}
-        </button>
-      </div>
-
       {/* ── Footer / Logout ── */}
       <div className="border-t border-border/40 dark:border-white/[0.06]">
         <button
           onClick={() => signOut()}
           className={cn(
             "flex items-center gap-3 w-full px-4 py-3 transition-all duration-200 group cursor-pointer",
-            "text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive",
+            "text-foreground/60 hover:bg-destructive/10 hover:text-destructive hover-glow",
             isCollapsed && "justify-center px-3",
           )}
         >

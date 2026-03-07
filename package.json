@@ -39,7 +39,7 @@
     "tailwind-merge": "^2.6.1",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^7.0.0",
-    "three": "^0.182.0",
+    "three": "^0.167.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

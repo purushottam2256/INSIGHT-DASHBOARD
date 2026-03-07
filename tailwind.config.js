@@ -72,7 +72,8 @@ export default {
   			sm: "calc(var(--radius) - 4px)",
   		},
         fontFamily: {
-            sans: ["Outfit", "sans-serif"],
+            sans: ["Inter", "system-ui", "sans-serif"],
+            display: ["Space Grotesk", "Inter", "sans-serif"],
         },
         keyframes: {
             "fade-in": {
@@ -91,12 +92,36 @@ export default {
                 "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0)" },
                 "50%": { boxShadow: "0 0 20px 4px hsl(var(--primary) / 0.15)" },
             },
+            "blob": {
+                "0%": { transform: "translate(0px, 0px) scale(1)" },
+                "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+                "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+                "100%": { transform: "translate(0px, 0px) scale(1)" }
+            },
+            "twinkle": {
+                "0%, 100%": { opacity: "0", transform: "scale(0.5)" },
+                "50%": { opacity: "1", transform: "scale(1.2)" },
+            },
+            "meteor": {
+                "0%": { transform: "rotate(215deg) translateX(0)", opacity: "0" },
+                "5%": { opacity: "1" },
+                "20%": { transform: "rotate(215deg) translateX(-1000px)", opacity: "0" },
+                "100%": { transform: "rotate(215deg) translateX(-1000px)", opacity: "0" },
+            },
+            "float": {
+                "0%, 100%": { transform: "translateY(0)" },
+                "50%": { transform: "translateY(-10px)" },
+            }
         },
         animation: {
             "fade-in": "fade-in 0.5s ease-out forwards",
             "slide-up": "slide-up 0.4s ease-out forwards",
             "scale-in": "scale-in 0.3s ease-out forwards",
             "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+            "blob": "blob 10s infinite",
+            "twinkle": "twinkle 3s ease-in-out infinite",
+            "meteor": "meteor 5s linear infinite",
+            "float": "float 6s ease-in-out infinite",
         },
   	},
   },

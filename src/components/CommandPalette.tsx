@@ -57,7 +57,7 @@ export default function CommandPalette() {
     { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, action: () => goTo('/dashboard'), category: 'navigate', keywords: 'home overview' },
     { id: 'nav-registration', label: 'Registration', icon: GraduationCap, action: () => goTo('/registration'), category: 'navigate', keywords: 'students faculty' },
     { id: 'nav-timetable', label: 'Timetable', icon: Clock, action: () => goTo('/timetable'), category: 'navigate', keywords: 'schedule classes' },
-    { id: 'nav-attendance', label: 'Attendance', icon: CalendarCheck, action: () => goTo('/attendance-manager'), category: 'navigate', keywords: 'mark track' },
+    { id: 'nav-attendance', label: 'Monthly Overview', icon: CalendarCheck, action: () => goTo('/attendance-manager'), category: 'navigate', keywords: 'mark track attendance' },
     { id: 'nav-leaves', label: 'Leave Manager', icon: CalendarDays, action: () => goTo('/leaves'), category: 'navigate', keywords: 'approve request' },
     { id: 'nav-compare', label: 'Compare', icon: GitCompareArrows, action: () => goTo('/compare'), category: 'navigate', keywords: 'analytics trends' },
     { id: 'nav-reports', label: 'Reports', icon: FileSpreadsheet, action: () => goTo('/reports'), category: 'navigate', keywords: 'generate export' },

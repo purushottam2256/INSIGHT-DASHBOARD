@@ -1,110 +1,136 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Global Typography Enhancements ── */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+    letter-spacing: -0.025em;
+  }
+
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
 /* ============================================================================
-   INSIGHT DASHBOARD — Premium Institutional Orange Theme
+   INSIGHT DASHBOARD — Phase 19 Premium UI Redesign (Reference Match)
    
-   Design Philosophy:
-   - Deep orange as the ONLY primary color
-   - Warm-tinted neutrals with sharper contrast
-   - Glassmorphism + depth-aware surfaces
-   - Red-zone for dangerous operations (semester upgrade, section merge)
+   Design Philosophy (from Reference Image):
+   - Edge-to-edge solid premium sidebar (Deep Teal/Orange depending on branding)
+   - "Merged" active tabs curving seamlessly into the right-side background
+   - Ultra-light, soft right-side gradient background
+   - Clean, professional typography with perfect contrast
    ============================================================================ */
 
 @layer base {
   :root {
-    /* ── Backgrounds ── */
-    --background: 36 18% 97%; /* cleaner warm white */
-    --foreground: 25 15% 8%; /* deeper warm black */
+    /* ── Main Dashboard Background (Right Side) ── */
+    --background: 30 30% 98%; /* Warm off-white/champagne (light orange mix) */
+    --foreground: 220 20% 15%; /* Deep slate text for readability */
+
+    /* ── Sidebar (Solid Premium Dark-Blue/Teal from Reference) ── */
+    --sidebar: 205 45% 25%; /* #23516B style dark blue/teal */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-active-tab: 210 33% 96%; /* Matches right-side background perfectly */
 
     /* ── Cards & Surfaces ── */
-    --card: 0 0% 100%; /* pure white card — maximum contrast vs background */
-    --card-foreground: 25 15% 8%;
+    --card: 0 0% 100%; /* Pure white cards */
+    --card-foreground: 220 20% 15%;
 
-    /* ── Primary (Orange) ── */
-    --primary: 24 95% 50%; /* #F57C00 — deeper, more institutional orange */
+    /* ── Primary (Orange accents) ── */
+    --primary: 24 95% 50%; /* Keeping Insight's Orange as accent */
     --primary-foreground: 0 0% 100%;
 
-    /* ── Secondary (Warm Sand) ── */
-    --secondary: 32 30% 92%; /* deeper warm sand */
-    --secondary-foreground: 30 10% 20%;
+    /* ── Secondary & Muted ── */
+    --secondary: 210 20% 92%;
+    --secondary-foreground: 220 20% 20%;
+    --muted: 210 20% 94%;
+    --muted-foreground: 220 15% 45%;
 
-    /* ── Muted (Cream) ── */
-    --muted: 30 25% 90%; /* richer cream — visible but subtle */
-    --muted-foreground: 25 8% 45%; /* warm gray text */
-
-    /* ── Accent (Peach Highlight) ── */
-    --accent: 33 80% 93%; /* warm peach accent — slightly deeper */
-    --accent-foreground: 28 90% 30%;
+    /* ── Accent ── */
+    --accent: 210 20% 90%;
+    --accent-foreground: 220 20% 20%;
 
     /* ── Popover ── */
-    --popover: 36 35% 97%;
-    --popover-foreground: 30 12% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
 
     /* ── Borders & Inputs ── */
-    --border: 30 22% 85%; /* warmer, more visible border */
-    --input: 30 22% 85%;
-    --ring: 28 90% 48%; /* matches primary */
+    --border: 210 25% 85%; /* Elegant thin borders */
+    --input: 210 25% 85%;
+    --ring: 24 95% 50%;
 
     /* ── Destructive ── */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    /* ── Layout ── */
     --radius: 0.75rem;
 
-    /* ── Chart Colors (Orange Palette) ── */
-    --chart-1: 28 90% 48%; /* primary orange */
-    --chart-2: 36 100% 50%; /* amber */
-    --chart-3: 20 90% 40%; /* dark orange */
-    --chart-4: 45 93% 47%; /* golden yellow */
-    --chart-5: 0 72% 51%; /* red (destructive) */
+    /* ── Chart Colors ── */
+    --chart-1: 195 40% 40%; /* Teal */
+    --chart-2: 24 95% 50%; /* Orange */
+    --chart-3: 15 80% 60%; /* Coral */
+    --chart-4: 220 30% 60%; /* Blue/Grey */
+    --chart-5: 0 72% 51%; /* Red */
   }
 
   .dark {
-    /* ── Backgrounds (True Dark Slate) ── */
-    --background: 220 15% 6%; /* #0D1017 — dark slate with cool depth */
-    --foreground: 36 15% 95%; /* warm off-white */
+    /* ── Main Dashboard Background (Right Side) ── */
+    --background: 24 20% 8%; /* Deep warm brown/black (dark orange mix) */
+    --foreground: 30 20% 90%;
+
+    /* ── Sidebar (Even deeper slate/navy) ── */
+    --sidebar: 24 25% 6%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-active-tab: 24 20% 8%; /* Matches right-side dark background */
 
     /* ── Cards & Surfaces ── */
-    --card: 220 14% 9%; /* #12161F — dark slate card */
-    --card-foreground: 36 15% 95%;
+    --card: 224 20% 14%; /* Slightly lighter than background */
+    --card-foreground: 210 20% 90%;
 
-    /* ── Primary (Amber-Orange for dark) ── */
-    --primary: 28 100% 55%; /* #FF8C1A — vibrant deep orange */
-    --primary-foreground: 220 15% 6%;
+    /* ── Primary (Orange accents) ── */
+    --primary: 28 100% 55%;
+    --primary-foreground: 224 25% 10%;
 
-    /* ── Secondary (Warm Dark) ── */
-    --secondary: 220 12% 13%; /* #1A1F2B — slate gray */
-    --secondary-foreground: 36 15% 85%;
+    /* ── Secondary & Muted ── */
+    --secondary: 224 20% 16%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 224 20% 15%;
+    --muted-foreground: 215 15% 60%;
 
-    /* ── Muted (Dark Warm) ── */
-    --muted: 220 12% 11%; /* #161A24 — deep slate */
-    --muted-foreground: 220 8% 55%;
-
-    /* ── Accent (Dark Amber Tint) ── */
-    --accent: 25 25% 12%; /* dark orange tint */
+    /* ── Accent ── */
+    --accent: 224 20% 18%;
     --accent-foreground: 28 100% 55%;
 
     /* ── Popover ── */
-    --popover: 220 14% 9%;
-    --popover-foreground: 36 15% 95%;
+    --popover: 224 20% 14%;
+    --popover-foreground: 210 20% 90%;
 
     /* ── Borders & Inputs ── */
-    --border: 220 10% 18%; /* dark slate border */
-    --input: 220 10% 18%;
-    --ring: 28 100% 55%; /* deep orange ring */
+    --border: 224 15% 20%;
+    --input: 224 15% 20%;
+    --ring: 28 100% 55%;
 
     /* ── Destructive ── */
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* ── Chart Colors (Amber Palette for dark) ── */
-    --chart-1: 28 100% 55%;
-    --chart-2: 36 100% 50%;
-    --chart-3: 45 93% 47%;
-    --chart-4: 16 90% 40%;
+    /* ── Chart Colors ── */
+    --chart-1: 195 50% 50%;
+    --chart-2: 28 100% 55%;
+    --chart-3: 15 80% 60%;
+    --chart-4: 220 30% 60%;
     --chart-5: 0 62% 55%;
   }
 }
@@ -168,13 +194,21 @@
 
 /* Sidebar Glass Effect */
 .sidebar-glass {
-  background: hsl(var(--card));
-  border-right: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--card) / 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid hsl(var(--border) / 0.4);
+  box-shadow:
+    0 1px 3px hsl(var(--foreground) / 0.02),
+    0 4px 16px hsl(var(--foreground) / 0.01);
 }
 
 .dark .sidebar-glass {
-  background: hsl(220 14% 7%);
+  background: hsl(220 14% 7% / 0.85);
   border-right: 1px solid hsl(0 0% 100% / 0.06);
+  box-shadow:
+    0 1px 3px hsl(0 0% 0% / 0.2),
+    0 0 20px hsl(28 100% 55% / 0.03);
 }
 
 /* Sidebar brand text gradient */
@@ -367,6 +401,24 @@
   border: 2px solid hsl(28 90% 48% / 0.8);
   border-radius: 12px;
   position: relative;
+}
+
+/* Premium Hover Glow Utilities */
+.hover-glow {
+  transition: border-color 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.hover-glow:hover {
+  border-color: hsl(28, 100%, 55%) !important;
+}
+
+.dark .hover-glow:hover {
+  border-color: hsl(28, 100%, 50%) !important;
+}
+
+.hover-glow-accent:hover {
+  border-color: hsl(28, 100%, 55%) !important;
 }
 
 /* ============================================================================
@@ -634,5 +686,182 @@
   }
   50% {
     transform: translateY(-2px);
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES — Exact UI Match & A4 formatting
+   ============================================================================ */
+@media print {
+  /* ── 1. Force exact colors for all elements ── */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* ── 2. A4 Landscape page setup ── */
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  /* ── 3. Reset HTML/Body to flow naturally ── */
+  body, html {
+    height: auto !important;
+    overflow: visible !important;
+    background-color: white !important;
+    color: black !important;
+    font-size: 11px !important;
+  }
+
+  /* ── 4. Hide ALL non-content chrome ── */
+  .print\:hidden,
+  [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  .print\:block,
+  [class*="print:block"] {
+    display: block !important;
+  }
+
+  /* ── 5. Reset layout shell for full-width printing ── */
+  .flex.h-screen {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+    height: auto !important;
+  }
+
+  main > div {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    animation: none !important;
+  }
+
+  /* ── 6. Cards: Remove all visual embellishments ── */
+  .bg-card,
+  [class*="rounded-2xl"],
+  [class*="shadow-sm"],
+  [class*="border-border"] {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* CardContent should keep small internal padding */
+  [class*="CardContent"],
+  .p-4 {
+    padding: 4px !important;
+  }
+
+  /* ── 7. Print B/W Table Styling ── */
+  .print-bw-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+
+  .print-bw-table th,
+  .print-bw-table td {
+    border: 1.5px solid black !important;
+    color: black !important;
+    background: white !important;
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+    word-wrap: break-word !important;
+  }
+
+  .print-bw-table th {
+    background: #f0f0f0 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Remove any colored backgrounds/rings inside cells */
+  .print-bw-table * {
+    color: black !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: black !important;
+  }
+
+  .print-bw-table td [class*="bg-primary"],
+  .print-bw-table td [class*="bg-orange"],
+  .print-bw-table td [class*="ring-"] {
+    background: white !important;
+    box-shadow: none !important;
+    border: 1px solid #666 !important;
+    color: black !important;
+  }
+
+  /* ── 8. Print Header (visible only during print) ── */
+  .hidden.print\:block,
+  [class*="hidden"][class*="print:block"] {
+    display: block !important;
+    color: black !important;
+    text-align: center !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* ── 9. Subject & Faculty Mapping table (below grid) ── */
+  .print-bw-table + div,
+  [class*="print:mt-6"] {
+    margin-top: 12px !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ── 10. Signature row (print only) ── */
+  .hidden.print\:flex,
+  [class*="hidden"][class*="print:flex"] {
+    display: flex !important;
+    color: black !important;
+  }
+
+  /* ── 11. Table page-break control ── */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* ── 12. Remove min-width constraints for print ── */
+  [class*="min-w-"] {
+    min-width: 0 !important;
+  }
+
+  /* ── 13. Overflow reset for print ── */
+  [class*="overflow-x-auto"],
+  [class*="overflow-hidden"] {
+    overflow: visible !important;
+  }
+
+  /* ── 14. Force all text to black ── */
+  h1, h2, h3, h4, h5, h6, p, span, td, th, div, label, strong, b {
+    color: black !important;
+  }
+
+  /* ── 15. Hide empty-state and loading indicators ── */
+  [class*="animate-spin"] {
+    display: none !important;
   }
 }

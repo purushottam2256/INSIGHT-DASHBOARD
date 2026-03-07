@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useLeaves } from "@/hooks/useLeaves"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -7,11 +7,15 @@ import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/comp
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Check, CalendarDays, ArrowRight, RefreshCw, Shield, ChevronRight } from "lucide-react"
+import { Loader2, Check, CalendarDays, ArrowRight, RefreshCw, Shield, ChevronRight, Plus, Users, UserCheck, Search, Trash2 } from "lucide-react"
 import { format, parseISO, eachDayOfInterval } from "date-fns"
 import { useTimetable } from "@/hooks/useTimetable"
 import { DEPARTMENTS } from "@/lib/constants"
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
     pending_hod: { label: 'Awaiting HOD', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
@@ -25,6 +29,17 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 /** Is this a "pending at HOD" status? (backward-compat) */
 const isHodPending = (s: string) => s === 'pending' || s === 'pending_hod'
+
+const REASON_CATEGORIES = [
+    { value: 'medical', label: 'Medical' },
+    { value: 'personal', label: 'Personal' },
+    { value: 'family', label: 'Family' },
+    { value: 'academic', label: 'Academic' },
+    { value: 'event', label: 'Event' },
+    { value: 'other', label: 'Other' },
+]
+
+type LeaveTab = 'faculty' | 'student'
 
 export function LeaveManager() {
     const { session } = useAuth()
@@ -55,12 +70,30 @@ export function LeaveManager() {
     const [subAssignments, setSubAssignments] = useState<Record<string, string>>({})
     const [facultyList, setFacultyList] = useState<any[]>([])
 
+    // Fetch ALL leaves for summary stats (no status filter)
+    const [allLeaves, setAllLeaves] = useState<any[]>([])
+    
     const loadLeaves = async () => {
         const data = await fetchLeaves(deptFilter || "All", statusFilter)
         setLeaves(data)
     }
+    
+    const loadAllLeaves = async () => {
+        const data = await fetchLeaves(deptFilter || "All", 'all')
+        setAllLeaves(data)
+    }
 
     useEffect(() => { loadLeaves() }, [statusFilter, deptFilter])
+    useEffect(() => { loadAllLeaves() }, [deptFilter])
+    
+    // Summary stats computed from allLeaves
+    const stats = useMemo(() => {
+        const pending_hod = allLeaves.filter(l => l.status === 'pending' || l.status === 'pending_hod').length
+        const pending_principal = allLeaves.filter(l => l.status === 'pending_principal').length
+        const approved = allLeaves.filter(l => l.status === 'approved' || l.status === 'accepted').length
+        const declined = allLeaves.filter(l => l.status === 'rejected' || l.status === 'declined').length
+        return { pending_hod, pending_principal, approved, declined, total: allLeaves.length }
+    }, [allLeaves])
 
     useEffect(() => {
         const loadFacs = async () => {
@@ -158,18 +191,14 @@ export function LeaveManager() {
     /** Route action based on status + role */
     const handleAction = async (leave: any) => {
         if (isHodPending(leave.status)) {
-            if (permissions.canApproveLeaveStage1 && !permissions.canApproveLeaveStage2) {
-                return handleHodApprove(leave)
-            }
-            // Admin/Principal can do both stages — go to sub dialog
-            return handleOpenPrincipalApprove(leave)
+            return handleHodApprove(leave)
         }
         if (leave.status === 'pending_principal') {
             return handleOpenPrincipalApprove(leave)
         }
     }
 
-    /** Can the current user act on this leave? */
+    /** Can the current user act on this leave? Only HOD for stage1, only Principal for stage2 */
     const canActOn = (leave: any) => {
         if (isHodPending(leave.status)) return permissions.canApproveLeaveStage1
         if (leave.status === 'pending_principal') return permissions.canApproveLeaveStage2
@@ -182,13 +211,146 @@ export function LeaveManager() {
     /** Button label based on status + role */
     const getApproveLabel = (leave: any) => {
         if (isHodPending(leave.status)) {
-            return permissions.canApproveLeaveStage2 ? 'Approve & Cover' : 'Forward to Principal'
+            return 'Forward to Principal'
         }
         return 'Approve & Cover'
     }
 
+    // ─── Tab state ───
+    const [activeTab, setActiveTab] = useState<LeaveTab>('faculty')
+
+    // ─── Student Leaves state ───
+    const [studentLeaves, setStudentLeaves] = useState<any[]>([])
+    const [studentLeaveFilter, setStudentLeaveFilter] = useState({ dept: permissions.isDeptScoped ? permissions.userDept || '' : 'All', year: 'All', section: 'All', status: 'All', category: 'All' })
+    const [showAddStudentLeave, setShowAddStudentLeave] = useState(false)
+    const [studentLeaveForm, setStudentLeaveForm] = useState({ student_id: '', reason_category: 'personal', reason_text: '', start_date: '', end_date: '' })
+    const [studentsList, setStudentsList] = useState<any[]>([])
+    const [studentLeaveLoading, setStudentLeaveLoading] = useState(false)
+    const [studentLeaveSearch, setStudentLeaveSearch] = useState('')
+    const [studentDialogSearch, setStudentDialogSearch] = useState('')
+
+    // Fetch student leaves
+    const loadStudentLeaves = async () => {
+        setStudentLeaveLoading(true)
+        let query = supabase.from('student_leaves').select('*, students(full_name, roll_no, dept, year, section)').order('created_at', { ascending: false })
+        if (studentLeaveFilter.status !== 'All') query = query.eq('status', studentLeaveFilter.status)
+        if (studentLeaveFilter.category !== 'All') query = query.eq('reason_category', studentLeaveFilter.category)
+        const { data, error } = await query
+        if (error) toast.error(error.message)
+        else {
+            let filtered = data || []
+            if (studentLeaveFilter.dept !== 'All') filtered = filtered.filter((l: any) => l.students?.dept === studentLeaveFilter.dept)
+            if (studentLeaveFilter.year !== 'All') filtered = filtered.filter((l: any) => l.students?.year === parseInt(studentLeaveFilter.year))
+            if (studentLeaveFilter.section !== 'All') filtered = filtered.filter((l: any) => l.students?.section === studentLeaveFilter.section)
+            setStudentLeaves(filtered)
+        }
+        setStudentLeaveLoading(false)
+    }
+
+    // Fetch students for dropdown
+    const loadStudents = async () => {
+        let query = supabase.from('students').select('id, full_name, roll_no, dept, year, section').eq('is_active', true).order('roll_no')
+        if (permissions.isDeptScoped && permissions.userDept) query = query.eq('dept', permissions.userDept)
+        const { data } = await query
+        setStudentsList(data || [])
+    }
+
+    useEffect(() => { if (activeTab === 'student') { loadStudentLeaves(); loadStudents() } }, [activeTab, studentLeaveFilter])
+
+    const handleAddStudentLeave = async () => {
+        if (!studentLeaveForm.student_id || !studentLeaveForm.start_date || !studentLeaveForm.end_date) { toast.error('Please fill all required fields'); return }
+        const { error } = await supabase.from('student_leaves').insert({
+            student_id: studentLeaveForm.student_id,
+            reason_category: studentLeaveForm.reason_category,
+            reason_text: studentLeaveForm.reason_text,
+            start_date: studentLeaveForm.start_date,
+            end_date: studentLeaveForm.end_date,
+            submitted_by: session?.user?.id,
+            status: 'approved', // HOD directly approves
+        })
+        if (error) toast.error(error.message)
+        else { toast.success('Student leave added'); setShowAddStudentLeave(false); setStudentLeaveForm({ student_id: '', reason_category: 'personal', reason_text: '', start_date: '', end_date: '' }); loadStudentLeaves() }
+    }
+
+    const handleStudentLeaveAction = async (id: string, action: 'approved' | 'rejected') => {
+        const { error } = await supabase.from('student_leaves').update({ status: action, approved_by: session?.user?.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id)
+        if (error) toast.error(error.message)
+        else { toast.success(`Leave ${action}`); loadStudentLeaves() }
+    }
+
+    const handleDeleteStudentLeave = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this student leave?')) return;
+        const { error } = await supabase.from('student_leaves').delete().eq('id', id)
+        if (error) toast.error(error.message)
+        else { toast.success('Student leave deleted'); loadStudentLeaves() }
+    }
+
+    // Filter student leaves by search
+    const filteredStudentLeaves = studentLeaves.filter((sl: any) => {
+        if (!studentLeaveSearch.trim()) return true;
+        const q = studentLeaveSearch.toLowerCase();
+        return (sl.students?.full_name?.toLowerCase().includes(q) || sl.students?.roll_no?.toLowerCase().includes(q));
+    });
+
+    // Filter students in Add dialog by search
+    const filteredStudentsList = studentsList.filter((s: any) => {
+        if (!studentDialogSearch.trim()) return true;
+        const q = studentDialogSearch.toLowerCase();
+        return (s.full_name?.toLowerCase().includes(q) || s.roll_no?.toLowerCase().includes(q));
+    });
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto animate-fade-in">
+
+            {/* Tab Switcher */}
+            <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border w-fit">
+                <button onClick={() => setActiveTab('faculty')} className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${activeTab === 'faculty' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                    <UserCheck className="h-4 w-4" /> Faculty Leaves
+                </button>
+                <button onClick={() => setActiveTab('student')} className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${activeTab === 'student' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                    <Users className="h-4 w-4" /> Student Leaves
+                </button>
+            </div>
+
+            {activeTab === 'faculty' ? (
+            <>
+
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <button onClick={() => setStatusFilter('pending_hod')} className={`p-3 rounded-xl border text-center transition-all ${statusFilter === 'pending_hod' ? 'ring-2 ring-amber-500/40 border-amber-500/40' : 'hover:bg-muted/50'}`}>
+                    <div className="text-2xl font-black text-amber-600">{stats.pending_hod}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">Pending HOD</div>
+                </button>
+                <button onClick={() => setStatusFilter('pending_principal')} className={`p-3 rounded-xl border text-center transition-all ${statusFilter === 'pending_principal' ? 'ring-2 ring-blue-500/40 border-blue-500/40' : 'hover:bg-muted/50'}`}>
+                    <div className="text-2xl font-black text-blue-600">{stats.pending_principal}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">Pending Principal</div>
+                </button>
+                <button onClick={() => setStatusFilter('approved')} className={`p-3 rounded-xl border text-center transition-all ${statusFilter === 'approved' ? 'ring-2 ring-emerald-500/40 border-emerald-500/40' : 'hover:bg-muted/50'}`}>
+                    <div className="text-2xl font-black text-emerald-600">{stats.approved}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">Approved</div>
+                </button>
+                <button onClick={() => setStatusFilter('rejected')} className={`p-3 rounded-xl border text-center transition-all ${statusFilter === 'rejected' ? 'ring-2 ring-red-500/40 border-red-500/40' : 'hover:bg-muted/50'}`}>
+                    <div className="text-2xl font-black text-red-600">{stats.declined}</div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">Declined</div>
+                </button>
+                <div className="p-3 rounded-xl border text-center flex flex-col justify-center">
+                    <Select disabled={permissions.isDeptScoped} value={deptFilter || "All"} onValueChange={setDeptFilter}>
+                        <SelectTrigger className="h-8 text-xs border-0 shadow-none p-0 justify-center font-bold"><SelectValue placeholder="Department" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All Departments</SelectItem>
+                            {DEPARTMENTS.map(d => (
+                                <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-0.5">Department</div>
+                </div>
+                <button onClick={() => { loadLeaves(); loadAllLeaves() }} className="p-3 rounded-xl border text-center transition-all hover:bg-muted/50 flex flex-col items-center justify-center" disabled={loading}>
+                    {loading ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : <RefreshCw className="h-5 w-5 text-primary" />}
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mt-1">Reload</div>
+                </button>
+            </div>
 
 
             {/* Two-stage indicator */}
@@ -209,33 +371,6 @@ export function LeaveManager() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between pb-4 border-b">
-                <div className="flex gap-3">
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="pending_hod">⏳ Awaiting HOD</SelectItem>
-                            <SelectItem value="pending_principal">🔵 Awaiting Principal</SelectItem>
-                            <SelectItem value="approved">✅ Approved</SelectItem>
-                            <SelectItem value="rejected">❌ Declined</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Select disabled={permissions.isDeptScoped} value={deptFilter || "All"} onValueChange={setDeptFilter}>
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Department" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="All">All Departments</SelectItem>
-                            {DEPARTMENTS.map(d => (
-                                <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <Button onClick={loadLeaves} variant="outline" size="sm" disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />} Reload
-                </Button>
-            </div>
 
             {/* Leave Cards */}
             {leaves.length === 0 ? (
@@ -291,7 +426,7 @@ export function LeaveManager() {
                                     )}
                                 </CardHeader>
 
-                                {actionable && (
+                                {actionable ? (
                                     <CardFooter className="flex md:flex-col justify-end gap-3 p-6 bg-muted/20 border-l">
                                         <Button
                                             onClick={() => handleAction(leave)}
@@ -302,6 +437,12 @@ export function LeaveManager() {
                                         <Button onClick={() => handleDecline(leave)} variant="destructive" className="w-full">
                                             Decline
                                         </Button>
+                                    </CardFooter>
+                                ) : (
+                                    <CardFooter className="flex items-center justify-center p-6 bg-muted/10 border-l min-w-[160px]">
+                                        <div className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${statusInfo.bg} ${statusInfo.color} text-center`}>
+                                            {statusInfo.label}
+                                        </div>
                                     </CardFooter>
                                 )}
                             </Card>
@@ -366,6 +507,181 @@ export function LeaveManager() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </>
+            ) : (
+            /* ═══ STUDENT LEAVES TAB ═══ */
+            <div className="space-y-4">
+                {/* Search Bar + Filters */}
+                <div className="space-y-3">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search by student name or roll number..."
+                            value={studentLeaveSearch}
+                            onChange={(e) => setStudentLeaveSearch(e.target.value)}
+                            className="pl-9 h-10 rounded-xl"
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <Select value={studentLeaveFilter.dept} onValueChange={v => setStudentLeaveFilter(f => ({ ...f, dept: v }))} disabled={permissions.isDeptScoped}>
+                            <SelectTrigger className="w-36 h-9 text-xs"><SelectValue placeholder="Dept" /></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All Depts</SelectItem>{DEPARTMENTS.map(d => <SelectItem key={d.value} value={d.value}>{d.value}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select value={studentLeaveFilter.year} onValueChange={v => setStudentLeaveFilter(f => ({ ...f, year: v }))}>
+                            <SelectTrigger className="w-24 h-9 text-xs"><SelectValue placeholder="Year" /></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All</SelectItem>{[1,2,3,4].map(y => <SelectItem key={y} value={y.toString()}>Y{y}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select value={studentLeaveFilter.section} onValueChange={v => setStudentLeaveFilter(f => ({ ...f, section: v }))}>
+                            <SelectTrigger className="w-24 h-9 text-xs"><SelectValue placeholder="Sec" /></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All</SelectItem>{['A','B','C','D','E'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select value={studentLeaveFilter.status} onValueChange={v => setStudentLeaveFilter(f => ({ ...f, status: v }))}>
+                            <SelectTrigger className="w-28 h-9 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="rejected">Rejected</SelectItem></SelectContent>
+                        </Select>
+                        <Select value={studentLeaveFilter.category} onValueChange={v => setStudentLeaveFilter(f => ({ ...f, category: v }))}>
+                            <SelectTrigger className="w-28 h-9 text-xs"><SelectValue placeholder="Reason" /></SelectTrigger>
+                            <SelectContent><SelectItem value="All">All</SelectItem>{REASON_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <div className="ml-auto">
+                            <Button size="sm" onClick={() => setShowAddStudentLeave(true)} className="gap-1">
+                                <Plus className="h-4 w-4" /> Add Leave
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Student Leave Cards */}
+                {studentLeaveLoading ? (
+                    <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                ) : studentLeaves.length === 0 ? (
+                    <div className="h-40 flex flex-col items-center justify-center text-muted-foreground border rounded-xl border-dashed">
+                        <Users className="h-8 w-8 mb-2 opacity-50" />
+                        <p>No student leave requests found.</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-3">
+                        {filteredStudentLeaves.map((sl: any) => (
+                            <Card key={sl.id} className="flex flex-col md:flex-row justify-between border shadow-sm">
+                                <CardHeader className="flex-1">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-base flex items-center gap-2">
+                                                {sl.students?.full_name || 'Unknown'}
+                                                <span className="text-xs font-mono text-muted-foreground">{sl.students?.roll_no}</span>
+                                                <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground border">
+                                                    {sl.students?.dept}-Y{sl.students?.year}-{sl.students?.section}
+                                                </span>
+                                            </CardTitle>
+                                            <CardDescription className="flex items-center gap-2 mt-2">
+                                                <CalendarDays className="h-4 w-4" />
+                                                <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
+                                                    {format(new Date(sl.start_date), 'MMM d, yyyy')}
+                                                </span>
+                                                <ArrowRight className="h-3 w-3 text-primary" />
+                                                <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-semibold text-xs border border-primary/20">
+                                                    {format(new Date(sl.end_date), 'MMM d, yyyy')}
+                                                </span>
+                                                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-muted">{sl.total_days}d</span>
+                                            </CardDescription>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                                sl.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600' :
+                                                sl.status === 'rejected' ? 'bg-red-500/10 border-red-500/20 text-red-600' :
+                                                'bg-amber-500/10 border-amber-500/20 text-amber-600'
+                                            }`}>
+                                                {sl.status === 'approved' ? 'Approved' : sl.status === 'rejected' ? 'Rejected' : 'Pending'}
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteStudentLeave(sl.id)}
+                                                className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                                                title="Delete leave"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm mt-2 pt-2 border-t">
+                                        <span className="font-semibold capitalize mr-2 px-1.5 py-0.5 rounded bg-muted text-xs">{sl.reason_category}</span>
+                                        {sl.reason_text || 'No details provided.'}
+                                    </p>
+                                </CardHeader>
+                                {sl.status === 'pending' && (permissions.canApproveLeaveStage1 || permissions.canApproveLeaveStage2) && (
+                                    <CardFooter className="flex md:flex-col justify-end gap-2 p-4 bg-muted/20 border-l">
+                                        <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'approved')} className="bg-emerald-600 hover:bg-emerald-700 w-full">Approve</Button>
+                                        <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'rejected')} variant="destructive" className="w-full">Reject</Button>
+                                    </CardFooter>
+                                )}
+                            </Card>
+                        ))}
+                    </div>
+                )}
+
+                {/* Add Student Leave Dialog */}
+                <Dialog open={showAddStudentLeave} onOpenChange={setShowAddStudentLeave}>
+                    <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Add Student Leave Permission</DialogTitle>
+                            <DialogDescription>Grant leave permission for a student within your department.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-2">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Student *</Label>
+                                <div className="relative mb-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search student name or roll no..."
+                                        value={studentDialogSearch}
+                                        onChange={(e) => setStudentDialogSearch(e.target.value)}
+                                        className="pl-9 h-9 text-sm rounded-lg"
+                                    />
+                                </div>
+                                <Select value={studentLeaveForm.student_id} onValueChange={v => setStudentLeaveForm(f => ({ ...f, student_id: v }))}>
+                                    <SelectTrigger><SelectValue placeholder="Select Student..." /></SelectTrigger>
+                                    <SelectContent className="max-h-60">
+                                        {filteredStudentsList.map(s => (
+                                            <SelectItem key={s.id} value={s.id}>{s.full_name} ({s.roll_no}) — {s.dept}-Y{s.year}-{s.section}</SelectItem>
+                                        ))}
+                                        {filteredStudentsList.length === 0 && (
+                                            <div className="px-4 py-3 text-xs text-muted-foreground text-center">No matching students found.</div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Start Date *</Label>
+                                    <Input type="date" value={studentLeaveForm.start_date} onChange={e => setStudentLeaveForm(f => ({ ...f, start_date: e.target.value }))} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">End Date *</Label>
+                                    <Input type="date" value={studentLeaveForm.end_date} onChange={e => setStudentLeaveForm(f => ({ ...f, end_date: e.target.value }))} />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Reason Category</Label>
+                                <Select value={studentLeaveForm.reason_category} onValueChange={v => setStudentLeaveForm(f => ({ ...f, reason_category: v }))}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>{REASON_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Details / Reason</Label>
+                                <Textarea placeholder="Optional details..." value={studentLeaveForm.reason_text} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setStudentLeaveForm(f => ({ ...f, reason_text: e.target.value }))} rows={3} />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowAddStudentLeave(false)}>Cancel</Button>
+                            <Button onClick={handleAddStudentLeave} className="bg-emerald-600 hover:bg-emerald-700">
+                                <Plus className="h-4 w-4 mr-1" /> Grant Leave
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
+            )}
+
         </div>
     )
 }

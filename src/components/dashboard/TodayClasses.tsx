@@ -14,13 +14,11 @@ interface ClassAttendanceProps {
   onFilterChange?: (filters: any) => void;
 }
 
-type StatusFilter = 'all' | 'Upcoming' | 'Ongoing' | 'Completed';
 
 const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
     const [year, setYear] = React.useState<string>("all-years");
     const [section, setSection] = React.useState<string>("all-sections");
     const [dept, setDept] = React.useState<string>("all-dept");
-    const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
     const { role, dept: userDept } = useUserRole();
 
     // HOD Limitation
@@ -66,25 +64,9 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
         const matchYear = year === "all-years" || session.target_year?.toString() === year;
         const matchSection = section === "all-sections" || session.target_section === section;
         const matchDept = dept === "all-dept" || session.target_dept === dept;
-        const matchStatus = statusFilter === "all" || session.status === statusFilter;
-        return matchYear && matchSection && matchDept && matchStatus;
+        return matchYear && matchSection && matchDept;
     });
 
-    // Status counts
-    const statusCounts = React.useMemo(() => {
-        const filtered = classes.filter(session => {
-            const matchYear = year === "all-years" || session.target_year?.toString() === year;
-            const matchSection = section === "all-sections" || session.target_section === section;
-            const matchDept = dept === "all-dept" || session.target_dept === dept;
-            return matchYear && matchSection && matchDept;
-        });
-        return {
-            all: filtered.length,
-            Upcoming: filtered.filter(c => c.status === 'Upcoming').length,
-            Ongoing: filtered.filter(c => c.status === 'Ongoing').length,
-            Completed: filtered.filter(c => c.status === 'Completed').length,
-        };
-    }, [classes, year, section, dept]);
 
   const getAttendanceColor = (percentage: number) => {
     if (percentage >= 85) return "text-green-600 dark:text-green-500"; 
@@ -93,7 +75,7 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
   };
 
   return (
-        <Card className="h-full border-border/50 shadow-xl flex flex-col overflow-hidden bg-card/80 dark:bg-card/60 backdrop-blur-xl ring-1 ring-border/30 transition-all hover:shadow-2xl">
+        <Card className="h-full bg-card border border-border shadow-sm flex flex-col overflow-hidden rounded-2xl transition-all duration-300">
             <CardHeader className="pb-4 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
                 <div className="flex flex-col gap-3">
                     {/* Title + Filters Row */}
@@ -145,24 +127,6 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-
-                    {/* Status Filter Tabs */}
-                    <div className="flex items-center gap-1.5 bg-muted/40 dark:bg-muted/20 rounded-lg p-1">
-                        {(['all', 'Upcoming', 'Ongoing', 'Completed'] as StatusFilter[]).map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status)}
-                                className={cn(
-                                    "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200",
-                                    statusFilter === status 
-                                        ? "bg-primary text-primary-foreground shadow-sm" 
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                )}
-                            >
-                                {status === 'all' ? 'All' : status} ({statusCounts[status]})
-                            </button>
-                        ))}
                     </div>
                 </div>
             </CardHeader>

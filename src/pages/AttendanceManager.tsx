@@ -97,7 +97,7 @@ export function AttendanceManager() {
                  overallP += dayP; overallA += dayA; overallOD += dayOD; overallL += dayL;
                  
                  let cellVal = '-';
-                 if (dayP > 0) cellVal = dayP.toString()
+                 if (dayP > 0) cellVal = 'P'
                  else if (dayOD > 0) cellVal = `OD: ${dayOD}`
                  else if (dayL > 0) cellVal = `L: ${dayL}`
                  else if (dayA > 0) cellVal = 'A'
@@ -108,8 +108,8 @@ export function AttendanceManager() {
              row['Tot. A'] = overallA
              row['Tot. OD'] = overallOD
              row['Tot. L'] = overallL
-             row['Attendance %'] = (overallP + overallA + overallOD + overallL) > 0 
-                ? Math.round(((overallP + overallOD) / (overallP + overallA + overallOD + overallL)) * 100) + '%'
+             row['Attendance %'] = (overallP + overallA + overallOD) > 0 
+                ? Math.round(((overallP + overallOD) / (overallP + overallA + overallOD)) * 100) + '%'
                 : '-'
              data.push(row)
         })
@@ -123,8 +123,7 @@ export function AttendanceManager() {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Monthly Attendance Overview</h1>
-                    <p className="text-muted-foreground">College-grade student attendance summary by month.</p>
+                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Monthly Overview</h1>
                 </div>
                 
                 {/* Sleek Month Strip */}
@@ -272,7 +271,7 @@ export function AttendanceManager() {
                                             overallP += dayP; overallA += dayA; overallOD += dayOD; overallL += dayL;
                                             
                                             let content: any = <span className="text-muted-foreground/30 font-bold">-</span>
-                                            if (dayP > 0) content = <span className="text-emerald-600 font-bold">{dayP}</span>
+                                            if (dayP > 0) content = <span className="text-emerald-600 font-bold">P</span>
                                             else if (dayOD > 0) content = <span className="text-yellow-600 font-bold px-1.5 py-0.5 bg-yellow-500/10 rounded">OD: {dayOD}</span>
                                             else if (dayL > 0) content = <span className="text-orange-600 font-bold px-1.5 py-0.5 bg-orange-500/10 rounded">L: {dayL}</span>
                                             else if (dayA > 0) content = <span className="text-red-600 font-bold">A</span>
@@ -288,13 +287,46 @@ export function AttendanceManager() {
                                         <td className="border-l p-3 text-center font-bold text-red-600 bg-red-500/5">{overallA > 0 ? overallA : '-'}</td>
                                         <td className="border-l p-3 text-center font-bold text-yellow-600 bg-yellow-500/5">{overallOD > 0 ? overallOD : '-'}</td>
                                         <td className="border-l p-3 text-center font-bold text-orange-600 bg-orange-500/5">{overallL > 0 ? overallL : '-'}</td>
-                                        <td className="border-l p-3 text-center font-extrabold bg-muted/10">
-                                            {(overallP + overallA + overallOD + overallL) > 0 
-                                                ? Math.round(((overallP + overallOD) / (overallP + overallA + overallOD + overallL)) * 100) + '%'
-                                                : '-'}
-                                        </td>
+                                        {(() => {
+                                            const totalCounted = overallP + overallA + overallOD;
+                                            const pct = totalCounted > 0 ? Math.round(((overallP + overallOD) / totalCounted) * 100) : -1;
+                                            return (
+                                                <td className={`border-l p-3 text-center font-extrabold ${
+                                                    pct < 0 ? '' : pct >= 75 ? 'text-emerald-600 bg-emerald-500/5' : pct >= 65 ? 'text-amber-600 bg-amber-500/5' : 'text-red-600 bg-red-500/5'
+                                                }`}>
+                                                    {pct >= 0 ? `${pct}%` : '-'}
+                                                </td>
+                                            );
+                                        })()}
                                     </tr>
                                 )})}
+                                {/* Class Summary Footer */}
+                                <tr className="bg-muted/40 font-bold border-t-2 border-primary/30">
+                                    <td className="p-4 text-xs text-muted-foreground" colSpan={3}>CLASS AVERAGE</td>
+                                    {uniqueDates.map(dateStr => {
+                                        const daySessions = filteredSessions.filter(s => s.date === dateStr)
+                                        let dayTotal = 0, dayP = 0;
+                                        filteredRoster.forEach(student => {
+                                            daySessions.forEach(sess => {
+                                                let status: any = sess.attendance_data?.[student.id] || sess.attendance_data?.[student.roll_no] || '-'
+                                                if (typeof status === 'string' && status !== '-') {
+                                                    status = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
+                                                }
+                                                if (status !== '-') dayTotal++
+                                                if (status === 'Present' || status === 'Late' || status === 'OD') dayP++
+                                            })
+                                        })
+                                        const pct = dayTotal > 0 ? Math.round((dayP / dayTotal) * 100) : -1;
+                                        return (
+                                            <td key={dateStr} className={`border-l p-3 text-center text-xs font-bold ${
+                                                pct < 0 ? 'text-muted-foreground/30' : pct >= 75 ? 'text-emerald-600' : pct >= 65 ? 'text-amber-600' : 'text-red-600'
+                                            }`}>
+                                                {pct >= 0 ? `${pct}%` : '-'}
+                                            </td>
+                                        )
+                                    })}
+                                    <td className="border-l p-3" colSpan={5} />
+                                </tr>
                             </tbody>
                         </table>
                     </CardContent>

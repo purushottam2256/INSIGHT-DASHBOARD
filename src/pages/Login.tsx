@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Loader2, CheckCircle2 } from "lucide-react"
-import logo from "@/assets/collage-logo.png"
+import logo from "@/assets/logo.png"
 
 import ZenBackground from "@/components/ZenBackground"
 
@@ -84,8 +84,8 @@ export function Login() {
 
             <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-8">
-                    <div className="h-14 w-14 bg-white/10 backdrop-blur-md rounded-2xl shadow-inner border border-white/20 flex items-center justify-center p-2">
-                         <img src={logo} alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
+                    <div className="h-[72px] w-[72px] bg-white/10 backdrop-blur-md rounded-2xl shadow-inner border border-white/20 flex items-center justify-center p-2">
+                         <img src={logo} alt="Logo" className="w-12 h-12 object-contain drop-shadow-md rounded-xl overflow-hidden" />
                     </div>
                     <span className="font-bold text-2xl tracking-tight text-white drop-shadow-sm">Insight</span>
                 </div>

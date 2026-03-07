@@ -37,7 +37,7 @@ const emptyForm = {
     blood_group: "",
     dob: "",
     batch: "1",
-    dept: "CSE",
+    dept: "",
     year: "1",
     section: "A",
     bluetooth_uuid: ""
@@ -70,12 +70,12 @@ export function StudentRegistration() {
   const isHod = profile?.role === 'hod'
   const allowedYears = getAllowedYears(profile?.dept || undefined, profile?.role || undefined)
 
-  // Enforce HOD dept lock and year defaults
+  // Enforce dept from user profile and year defaults
   useEffect(() => {
-    if (isHod && profile?.dept) {
-        const defaultYear = profile.dept === 'H&S' ? '1' : '2'
-        setFormData(prev => ({ ...prev, dept: profile.dept!, year: defaultYear }))
-        setFilterDept(profile.dept!)
+    if (profile?.dept) {
+      const defaultYear = profile.dept === 'H&S' ? '1' : isHod ? '2' : '1'
+      setFormData(prev => ({ ...prev, dept: profile.dept!, year: defaultYear }))
+      if (isHod) setFilterDept(profile.dept!)
     }
   }, [profile, isHod])
   
@@ -156,13 +156,24 @@ export function StudentRegistration() {
       return
     }
 
+    if (!formData.mobile.match(/^\d{10}$/)) {
+      toast.error("Mobile number must be exactly 10 digits")
+      return
+    }
+    
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!formData.bluetooth_uuid.trim().match(uuidPattern)) {
+      toast.error("BLE UUID must be a valid 128-bit format (e.g. 00000000-0000-0000-0000-000000000000)")
+      return
+    }
+
     setLoading(true)
     try {
         const payload = {
             full_name: formData.full_name.trim(),
             roll_no: formData.roll_no.trim().toUpperCase(),
             email: formData.email.trim() || null,
-            mobile: formData.mobile.trim() || null,
+            mobile: formData.mobile.trim(),
             parent_mobile: formData.parent_mobile.trim() || null,
             gender: formData.gender || 'Not Specified',
             blood_group: formData.blood_group || null,
@@ -171,7 +182,7 @@ export function StudentRegistration() {
             dept: formData.dept,
             year: parseInt(formData.year),
             section: formData.section.toUpperCase(),
-            bluetooth_uuid: formData.bluetooth_uuid.trim() || null
+            bluetooth_uuid: formData.bluetooth_uuid.trim()
         }
 
         if (editingId) {
@@ -247,7 +258,7 @@ export function StudentRegistration() {
               if (rows.length < 2) throw new Error("CSV file is empty or has no data rows")
               
               const headers = rows[0].split(',').map(h => h.trim().toLowerCase())
-              const requiredHeaders = ['full_name', 'roll_no', 'dept', 'year', 'section']
+              const requiredHeaders = ['full_name', 'roll_no', 'dept', 'year', 'section', 'mobile', 'bluetooth_uuid']
               const missing = requiredHeaders.filter(h => !headers.includes(h))
               if (missing.length > 0) throw new Error(`Missing headers: ${missing.join(', ')}`)
 
@@ -264,11 +275,15 @@ export function StudentRegistration() {
                   const yr = parseInt(obj.year) || 1
                   if (isHod && !allowedYears.includes(yr)) { skipped++; continue }
                   
+                  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                  if (!obj.mobile?.match(/^\d{10}$/)) { skipped++; continue }
+                  if (!obj.bluetooth_uuid?.trim().match(uuidPattern)) { skipped++; continue }
+
                   newStudents.push({
                       full_name: obj.full_name,
                       roll_no: obj.roll_no?.toUpperCase(),
                       email: obj.email || null,
-                      mobile: obj.mobile || null,
+                      mobile: obj.mobile,
                       parent_mobile: obj.parent_mobile || null,
                       gender: obj.gender || 'Not Specified',
                       blood_group: obj.blood_group || null,
@@ -277,7 +292,7 @@ export function StudentRegistration() {
                       dept: obj.dept || (profile?.dept || 'CSE'),
                       year: yr,
                       section: obj.section?.toUpperCase() || 'A',
-                      bluetooth_uuid: obj.bluetooth_uuid || null
+                      bluetooth_uuid: obj.bluetooth_uuid.trim()
                   })
               }
               
@@ -301,7 +316,7 @@ export function StudentRegistration() {
 
   const downloadTemplate = () => {
       const headers = "full_name,roll_no,email,mobile,parent_mobile,gender,blood_group,dob,batch,dept,year,section,bluetooth_uuid\n"
-      const sample = "John Doe,21MH1A0501,,,,Male,,,,CSE,3,A,\n"
+      const sample = "John Doe,21MH1A0501,,9876543210,,Male,,,,CSE,3,A,123e4567-e89b-12d3-a456-426614174000\n"
       const blob = new Blob([headers + sample], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -424,8 +439,8 @@ export function StudentRegistration() {
                                 <Input type="email" placeholder="Optional" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="h-8 text-sm" />
                             </div>
                             <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">Mobile</Label>
-                                <Input placeholder="Optional" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} className="h-8 text-sm" />
+                                <Label className="text-xs">Mobile <span className="text-red-500">*</span></Label>
+                                <Input placeholder="10 Digits" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value.replace(/\D/g, '')})} required pattern="^\d{10}$" maxLength={10} className="h-8 text-sm" />
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-xs text-muted-foreground">Parent Mobile</Label>
@@ -492,8 +507,8 @@ export function StudentRegistration() {
                         </Button>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">UUID (optional)</Label>
-                        <Input placeholder="e.g. 1a2b3c4d..." value={formData.bluetooth_uuid} onChange={(e) => setFormData({...formData, bluetooth_uuid: e.target.value})} className="bg-muted/30 h-8 text-sm" />
+                        <Label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">UUID <span className="text-red-500">*</span></Label>
+                        <Input placeholder="e.g. 00000000-0000-0000-0000-000000000000" value={formData.bluetooth_uuid} onChange={(e) => setFormData({...formData, bluetooth_uuid: e.target.value.toLowerCase()})} required pattern="^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" maxLength={36} className="bg-muted/30 h-8 text-sm" />
                     </div>
                     <div className="flex items-start gap-1.5 p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
                         <Info className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />

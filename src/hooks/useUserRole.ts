@@ -8,6 +8,7 @@ export const useUserRole = () => {
     const [role, setRole] = useState<UserRole>(null);
     const [dept, setDept] = useState<string | null>(null);
     const [session, setSession] = useState<Session | null>(null);
+    const [hasPassword, setHasPassword] = useState<boolean | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -22,9 +23,17 @@ export const useUserRole = () => {
                 if (!session?.user?.email) {
                     setRole(null);
                     setDept(null);
+                    setHasPassword(null);
                     setLoading(false);
                     return;
                 }
+
+                // Check if user has a password by looking at their identities or auth methods
+                // Supabase users created via 'magiclink' only, or those who haven't set a password,
+                // will not have an 'email' provider identity with a password, or we can check app_metadata.
+                const hasPass = session.user.app_metadata?.providers?.includes('email') && 
+                                session.user.identities?.some(id => id.provider === 'email');
+                setHasPassword(!!hasPass);
 
                 const email = session.user.email;
 
@@ -57,6 +66,7 @@ export const useUserRole = () => {
                 setError(err.message);
                 setRole(null);
                 setDept(null);
+                setHasPassword(null);
             } finally {
                 setLoading(false);
             }
@@ -69,6 +79,7 @@ export const useUserRole = () => {
              if (!session) {
                 setRole(null);
                 setDept(null);
+                setHasPassword(null);
             }
         });
 
@@ -76,5 +87,5 @@ export const useUserRole = () => {
 
     }, []);
 
-    return { role, dept, session, loading, error };
+    return { role, dept, session, loading, error, hasPassword };
 };

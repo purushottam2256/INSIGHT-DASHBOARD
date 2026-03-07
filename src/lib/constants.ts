@@ -1,14 +1,11 @@
+// Only 6 departments as per institution
 export const DEPARTMENTS = [
   { value: "H&S", label: "H&S" },
   { value: "CSE", label: "CSE" },
   { value: "CSM", label: "CSM" },
-  { value: "CSD-AIDS", label: "CSD-AIDS" },
-  { value: "CSC", label: "CSC" },
-  { value: "AIML", label: "AIML" },
+  { value: "CSD", label: "CSD" },
+  { value: "AIDS", label: "AIDS" },
   { value: "ECE", label: "ECE" },
-  { value: "EEE", label: "EEE" },
-  { value: "MECH", label: "Mechanical" },
-  { value: "IT", label: "IT" },
 ];
 
 export const YEARS = [
@@ -18,7 +15,44 @@ export const YEARS = [
   { value: "4", label: "4th Year" },
 ];
 
-export const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+export const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 /** Roles that have cross-department and elevated access */
 export const ELEVATED_ROLES = ['principal', 'management', 'developer', 'admin'] as const;
+
+/** Keyword shortcuts for global search routing */
+export const SEARCH_KEYWORDS: Record<string, { path: string; label: string }> = {
+  'holiday': { path: '/calendar', label: 'Calendar & Holidays' },
+  'holidays': { path: '/calendar', label: 'Calendar & Holidays' },
+  'event': { path: '/calendar', label: 'Calendar & Events' },
+  'events': { path: '/calendar', label: 'Calendar & Events' },
+  'calendar': { path: '/calendar', label: 'Calendar' },
+  'report': { path: '/reports', label: 'Reports & Export' },
+  'reports': { path: '/reports', label: 'Reports & Export' },
+  'export': { path: '/reports', label: 'Reports & Export' },
+  'setting': { path: '/settings', label: 'Settings' },
+  'settings': { path: '/settings', label: 'Settings' },
+  'config': { path: '/settings', label: 'Settings' },
+  'leave': { path: '/leaves', label: 'Leave Manager' },
+  'leaves': { path: '/leaves', label: 'Leave Manager' },
+  'attendance': { path: '/attendance-manager', label: 'Attendance Manager' },
+  'register': { path: '/registration', label: 'Registration' },
+  'registration': { path: '/registration', label: 'Registration' },
+  'student': { path: '/registration', label: 'Registration' },
+  'faculty': { path: '/registration', label: 'Faculty Management' },
+  'timetable': { path: '/timetable', label: 'Timetable' },
+  'schedule': { path: '/timetable', label: 'Timetable' },
+  'compare': { path: '/compare', label: 'Compare Classes' },
+  'compliance': { path: '/compliance', label: 'Compliance' },
+  'section': { path: '/sections', label: 'Section Manager' },
+  'sections': { path: '/sections', label: 'Section Manager' },
+  'broadcast': { path: '/broadcast', label: 'Broadcast' },
+  'help': { path: '/help', label: 'Help & Support' },
+  'complaint': { path: '/complaints', label: 'Complaints & Suggestions' },
+  'complaints': { path: '/complaints', label: 'Complaints & Suggestions' },
+  'suggestion': { path: '/complaints', label: 'Complaints & Suggestions' },
+  'overview': { path: '/student-overview', label: 'Student Overview' },
+  'benchmark': { path: '/benchmarking', label: 'Benchmarking' },
+  'audit': { path: '/audit-log', label: 'Audit Log' },
+  'semester': { path: '/semester-upgrade', label: 'Semester Manager' },
+};

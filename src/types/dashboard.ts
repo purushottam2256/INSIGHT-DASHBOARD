@@ -14,7 +14,7 @@ export interface LeaveRequest {
   start_date: string;
   end_date: string;
   leave_type: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: 'pending' | 'accepted' | 'declined' | 'pending_hod' | 'pending_principal' | 'approved' | 'rejected' | 'hod_approved';
   profiles?: {
     full_name: string;
     avatar_url?: string;

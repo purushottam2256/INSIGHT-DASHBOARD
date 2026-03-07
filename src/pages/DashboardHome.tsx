@@ -6,7 +6,6 @@ import ClassAttendance from '@/components/dashboard/TodayClasses';
 import UpcomingEvents from '@/components/dashboard/UpcomingEvents';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { SmartSummaryCards } from '@/components/dashboard/SmartSummaryCards';
-import { QuickActions } from '@/components/dashboard/QuickActions';
 import { FacultyPresenceStrip } from '@/components/dashboard/FacultyPresenceStrip';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
 
@@ -51,16 +50,13 @@ const DashboardHome = () => {
     if (loading && !profile) {
         return (
             <div className="space-y-6">
-                {/* Welcome Section Skeleton */}
                 <div className="flex flex-col md:flex-row gap-6 items-stretch">
                     <Skeleton className="flex-1 h-[200px] rounded-xl shimmer" />
                     <Skeleton className="w-full md:w-[400px] h-[200px] rounded-xl shimmer" />
                 </div>
-                {/* Summary Cards Skeleton */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[1,2,3,4].map(i => <Skeleton key={i} className="h-[120px] rounded-xl shimmer" />)}
                 </div>
-                {/* Dashboard Grid Skeleton */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2">
                         <Skeleton className="h-[400px] w-full rounded-xl shimmer" />
@@ -79,21 +75,14 @@ const DashboardHome = () => {
             {/* Hero Section: Welcome + Leave Approvals */}
             <div className="animate-fade-in">
                 <WelcomeSection 
-                    userName={profile?.full_name || 'Faculty'} 
                     leaveRequests={leaveRequests}
                     todayClassesCount={heroStats.todayClassesCount}
                     attendancePercent={heroStats.attendancePercent}
-                    activeODCount={heroStats.activeODCount}
                 />
             </div>
 
-            {/* Quick Actions + Summary Cards */}
-            <div className="animate-fade-in animate-fade-in-delay-1 space-y-4">
-                <div className="flex items-center justify-between">
-                    <QuickActions 
-                        pendingLeavesCount={leaveRequests.filter(l => l.status === 'pending').length}
-                    />
-                </div>
+            {/* Summary Cards — No QuickActions */}
+            <div className="animate-fade-in animate-fade-in-delay-1">
                 <SmartSummaryCards 
                     todayClasses={todayClasses}
                     leaveRequests={leaveRequests}

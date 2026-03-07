@@ -15,6 +15,7 @@ export interface SearchResults {
     faculty: SearchResultItem[];
     subjects: SearchResultItem[];
     sessions: SearchResultItem[];
+    keywords: SearchResultItem[];
 }
 
 const EMPTY_RESULTS: SearchResults = {
@@ -22,6 +23,7 @@ const EMPTY_RESULTS: SearchResults = {
     faculty: [],
     subjects: [],
     sessions: [],
+    keywords: [],
 };
 
 export const useSearch = (query: string, debounceMs = 300) => {
@@ -105,6 +107,19 @@ export const useSearch = (query: string, debounceMs = 300) => {
                     sessionsQuery,
                 ]);
 
+                const staticKeywords = [
+                    { id: 'kw1', title: 'Logout', subtitle: 'Sign out of your account', type: 'keyword', route: 'logout' },
+                    { id: 'kw2', title: 'Settings', subtitle: 'Manage your preferences', type: 'keyword', route: '/settings' },
+                    { id: 'kw3', title: 'Profile', subtitle: 'View your profile details', type: 'keyword', route: '/settings' },
+                    { id: 'kw4', title: 'Timetable', subtitle: 'View schedule', type: 'keyword', route: '/timetable' },
+                    { id: 'kw5', title: 'Calendar', subtitle: 'Academic events', type: 'keyword', route: '/calendar' },
+                    { id: 'kw6', title: 'Leave Manager', subtitle: 'Manage leaves', type: 'keyword', route: '/leaves' },
+                ];
+
+                const matchingKeywords = staticKeywords.filter(k => 
+                    k.title.toLowerCase().includes(query.trim().toLowerCase())
+                );
+
                 setResults({
                     students: (studentsRes.data || []).map((s: any) => ({
                         id: s.id,
@@ -136,6 +151,7 @@ export const useSearch = (query: string, debounceMs = 300) => {
                             : undefined,
                         type: 'session' as const,
                     })),
+                    keywords: matchingKeywords as any,
                 });
             } catch (err) {
                 console.error('Search error:', err);

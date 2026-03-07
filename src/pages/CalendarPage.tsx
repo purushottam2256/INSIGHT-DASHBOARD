@@ -50,7 +50,7 @@ export function CalendarPage() {
             const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
             const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
-            // 1. Fetch user-created events from Supabase
+            // 1. Fetch user-created events from Supabase (holidays table)
             const { data, error } = await supabase
                 .from('holidays')
                 .select('*')
@@ -58,9 +58,15 @@ export function CalendarPage() {
                 .lte('date', end)
                 .order('date');
 
-            const dbEvents = !error ? ((data || []) as CalendarEvent[]) : [];
+            const dbEvents = !error ? ((data || []).map((e: any) => ({
+                id: e.id,
+                date: e.date,
+                title: e.name,
+                type: 'holiday' as const,
+                description: e.description,
+            })) as CalendarEvent[]) : [];
 
-            // 2. Auto-fetch Indian public holidays from free API
+            // 2. Auto-fetch Indian public holidays from free API (date.nager.at — no key needed)
             let holidayEvents: CalendarEvent[] = [];
             try {
                 const year = currentMonth.getFullYear();
@@ -81,11 +87,11 @@ export function CalendarPage() {
                 // Silently fail — holidays are optional
             }
 
-            // 3. Merge: DB events take priority, add public holidays only if not duplicate
-            const dbDates = new Set(dbEvents.map(e => e.date + e.title));
+            // 3. Merge: DB events take priority, then API holidays
+            const seen = new Set(dbEvents.map(e => e.date + e.title));
             const merged = [
                 ...dbEvents,
-                ...holidayEvents.filter(h => !dbDates.has(h.date + h.title)),
+                ...holidayEvents.filter(h => !seen.has(h.date + h.title)),
             ];
 
             setEvents(merged);
@@ -128,22 +134,17 @@ export function CalendarPage() {
                 .from('holidays')
                 .insert({
                     date: format(selectedDate, 'yyyy-MM-dd'),
-                    title: newTitle.trim(),
-                    type: newType,
+                    name: newTitle.trim(),
                     description: newDescription.trim() || null,
                 });
             if (error) throw error;
 
-            // Refresh
-            const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-            const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
-            const { data } = await supabase
-                .from('holidays').select('*')
-                .gte('date', start).lte('date', end).order('date');
-            setEvents((data || []) as CalendarEvent[]);
+            // Re-trigger the full fetch (DB + API) by toggling the month state
+            setCurrentMonth(new Date(currentMonth));
             setNewTitle('');
             setNewDescription('');
             setShowAddForm(false);
+            toast.success('Event added');
         } catch (err: any) {
             toast.error('Error: ' + err.message);
         } finally {
@@ -184,7 +185,7 @@ export function CalendarPage() {
                         {/* Day headers */}
                         <div className="grid grid-cols-7 mb-1">
                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                                <div key={d} className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider py-1">{d}</div>
+                                <div key={d} className={`text-center text-[10px] font-bold uppercase tracking-wider py-1 ${d === 'Sun' ? 'text-orange-500' : 'text-muted-foreground'}`}>{d}</div>
                             ))}
                         </div>
 
@@ -201,33 +202,48 @@ export function CalendarPage() {
                                     const dayEvents = getEventsForDate(day);
                                     const isSelected = selectedDate && isSameDay(day, selectedDate);
                                     const today = isToday(day);
+                                    const isSunday = day.getDay() === 0;
+                                    const hasHoliday = dayEvents.some(e => e.type === 'holiday');
+                                    const hasExam = dayEvents.some(e => e.type === 'exam');
+                                    const hasEvent = dayEvents.some(e => e.type === 'event');
+
+                                    // Full-day background based on event type priority
+                                    const dayBg = hasHoliday
+                                        ? 'bg-red-500/8 dark:bg-red-500/10'
+                                        : hasExam
+                                        ? 'bg-blue-500/8 dark:bg-blue-500/10'
+                                        : hasEvent
+                                        ? 'bg-primary/5'
+                                        : isSunday
+                                        ? 'bg-orange-500/[0.04]'
+                                        : '';
 
                                     return (
                                         <button
                                             key={i}
                                             onClick={() => setSelectedDate(day)}
-                                            className={`min-h-[80px] p-1.5 rounded-lg text-left transition-all duration-200 border
+                                            className={`min-h-[80px] p-1.5 rounded-xl text-left transition-all duration-200 border
                                                 ${isSelected
-                                                    ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                                                    : 'border-transparent hover:bg-accent/30 hover:border-border/30'
+                                                    ? 'border-primary bg-primary/5 ring-2 ring-primary/30 shadow-sm'
+                                                    : `border-transparent hover:bg-accent/30 hover:border-border/30 ${dayBg}`
                                                 }
                                                 ${!isSameMonth(day, currentMonth) ? 'opacity-30' : ''}
                                             `}
                                         >
                                             <span className={`text-xs font-bold inline-flex items-center justify-center w-6 h-6 rounded-full
-                                                ${today ? 'bg-primary text-white' : 'text-foreground'}
+                                                ${today ? 'bg-primary text-white shadow-md' : isSunday ? 'text-orange-500' : hasHoliday ? 'text-red-500' : 'text-foreground'}
                                             `}>
                                                 {format(day, 'd')}
                                             </span>
                                             {dayEvents.length > 0 && (
                                                 <div className="mt-1 space-y-0.5">
                                                     {dayEvents.slice(0, 2).map(e => (
-                                                        <div key={e.id} className={`text-[9px] font-semibold px-1 py-0.5 rounded ${typeConfig[e.type].color} text-white truncate`}>
+                                                        <div key={e.id} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-md ${typeConfig[e.type].color} text-white truncate`}>
                                                             {e.title}
                                                         </div>
                                                     ))}
                                                     {dayEvents.length > 2 && (
-                                                        <span className="text-[8px] text-muted-foreground">+{dayEvents.length - 2} more</span>
+                                                        <span className="text-[8px] text-muted-foreground font-medium">+{dayEvents.length - 2} more</span>
                                                     )}
                                                 </div>
                                             )}
