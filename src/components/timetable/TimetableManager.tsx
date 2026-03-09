@@ -378,9 +378,9 @@ export function TimetableManager() {
     })
     setIsSaving(true)
     try {
-      // Save incharges
+      // Save incharges (always save to allow clearing previous ones)
       const inchargeIds = [incharge1, incharge2].filter(Boolean)
-      if (inchargeIds.length > 0) await saveClassIncharges(meta.dept, meta.year, meta.section, inchargeIds)
+      await saveClassIncharges(meta.dept, meta.year, meta.section, inchargeIds)
 
       // Save subject acronyms and credits that might have been edited in Step 2
       const subjectUpdates = mappings.map(m => updateSubject(m.subject_id, { acronym: m.acronym, credits: m.credits }))
@@ -500,7 +500,7 @@ export function TimetableManager() {
   // ═══ RENDER ═══════════════════════════════════════════════
   if (!canEdit) {
     return (
-      <Card className="bg-card border border-border shadow-sm rounded-2xl">
+      <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
         <CardContent className="py-16 text-center">
           <ShieldAlert className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
           <h3 className="text-lg font-semibold">Access Restricted</h3>
@@ -542,7 +542,7 @@ export function TimetableManager() {
 
       {/* ═══ STEP 1: Header Metadata ═══ */}
       {step === 1 && (
-        <Card className="bg-card border border-border shadow-sm rounded-2xl">
+        <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5 text-primary" /> Class Information</CardTitle>
             <CardDescription>Fill in the class details to begin timetable creation.{isHod && <span className="text-orange-600 font-semibold ml-1">(HOD: {profile?.dept} only)</span>}</CardDescription>
@@ -607,7 +607,7 @@ export function TimetableManager() {
 
       {/* ═══ STEP 2: Subject-Faculty Mapping ═══ */}
       {step === 2 && (
-        <Card className="bg-card border border-border shadow-sm rounded-2xl">
+        <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> Subject & Faculty Mapping</CardTitle>
             <CardDescription>
@@ -720,7 +720,7 @@ export function TimetableManager() {
 
       {/* ═══ STEP 3: Class Incharge ═══ */}
       {step === 3 && (
-        <Card className="bg-card border border-border shadow-sm rounded-2xl">
+        <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Class Incharge</CardTitle>
             <CardDescription>Assign up to 2 class incharges for {meta.year}-{meta.dept}-{meta.section}.</CardDescription>
@@ -729,22 +729,35 @@ export function TimetableManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
               <div>
                 <Label className="text-xs mb-1 block">Class Incharge 1</Label>
-                <Select value={incharge1} onValueChange={setIncharge1}>
-                  <SelectTrigger><SelectValue placeholder="Select Faculty" /></SelectTrigger>
-                  <SelectContent>
-                    {deptFacultyList.map(f => <SelectItem key={f.id} value={f.id}>{f.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={incharge1} onValueChange={setIncharge1}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select Faculty" /></SelectTrigger>
+                    <SelectContent>
+                      {deptFacultyList.map(f => <SelectItem key={f.id} value={f.id}>{f.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {incharge1 && (
+                    <Button variant="outline" size="icon" onClick={() => setIncharge1("")} title="Clear Incharge 1" className="shrink-0 text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Class Incharge 2 (Optional)</Label>
-                <Select value={incharge2} onValueChange={setIncharge2}>
-                  <SelectTrigger><SelectValue placeholder="Select Faculty" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— None —</SelectItem>
-                    {deptFacultyList.filter(f => f.id !== incharge1).map(f => <SelectItem key={f.id} value={f.id}>{f.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={incharge2} onValueChange={setIncharge2}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Select Faculty" /></SelectTrigger>
+                    <SelectContent>
+                      {deptFacultyList.filter(f => f.id !== incharge1).map(f => <SelectItem key={f.id} value={f.id}>{f.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {incharge2 && (
+                    <Button variant="outline" size="icon" onClick={() => setIncharge2("")} title="Clear Incharge 2" className="shrink-0 text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex justify-between mt-6">
@@ -760,7 +773,7 @@ export function TimetableManager() {
         <>
           {/* Mode selector (if no mode chosen yet) */}
           {!mode && (
-            <Card className="bg-card border border-border shadow-sm rounded-2xl">
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
               <CardContent className="py-12">
                 <h3 className="text-lg font-bold text-center mb-2">How would you like to build the timetable?</h3>
                 <p className="text-sm text-muted-foreground text-center mb-8">Choose automatic for AI-assisted scheduling, or manual for full control.</p>
@@ -784,7 +797,7 @@ export function TimetableManager() {
 
           {/* Grid */}
           {mode && (
-            <Card className="bg-card border border-border shadow-sm rounded-2xl" id="printable-timetable">
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden" id="printable-timetable">
               {/* Print header */}
               <div className="hidden print:block p-6 text-center border-b">
                 <h2 className="text-base font-bold uppercase tracking-wide">CLASS TIMETABLE</h2>

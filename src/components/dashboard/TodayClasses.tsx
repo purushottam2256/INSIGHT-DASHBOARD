@@ -14,7 +14,6 @@ interface ClassAttendanceProps {
   onFilterChange?: (filters: any) => void;
 }
 
-
 const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
     const [year, setYear] = React.useState<string>("all-years");
     const [section, setSection] = React.useState<string>("all-sections");
@@ -67,62 +66,66 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
         return matchYear && matchSection && matchDept;
     });
 
-
   const getAttendanceColor = (percentage: number) => {
-    if (percentage >= 85) return "text-green-600 dark:text-green-500"; 
-    if (percentage >= 75) return "text-amber-600 dark:text-amber-500"; 
-    return "text-red-600 dark:text-red-500"; 
+    if (percentage >= 85) return "text-emerald-500 from-emerald-400 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700 bg-emerald-500"; 
+    if (percentage >= 75) return "text-amber-500 from-amber-400 to-amber-600 dark:from-amber-500 dark:to-amber-700 bg-amber-500"; 
+    return "text-red-500 from-red-400 to-red-600 dark:from-red-500 dark:to-red-700 bg-red-500"; 
   };
 
   return (
-        <Card className="h-full bg-card border border-border shadow-sm flex flex-col overflow-hidden rounded-2xl transition-all duration-300">
-            <CardHeader className="pb-4 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
-                <div className="flex flex-col gap-3">
+        <Card className="col-span-1 lg:col-span-2 h-full bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] flex flex-col overflow-hidden rounded-[1.5rem] transition-all duration-300">
+            <CardHeader className="pb-4 pt-5 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                <div className="flex flex-col gap-4">
                     {/* Title + Filters Row */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
-                                <Users className="h-4 w-4" />
-                            </div>
-                            <h3 className="text-xl font-bold tracking-tight text-foreground">Classes</h3>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                             <div className="p-2 rounded-[10px] bg-gradient-to-br from-primary to-orange-500 text-white shadow-md shadow-primary/20">
+                                 <Users className="h-4 w-4" />
+                             </div>
+                             <div>
+                                 <h3 className="text-[17px] font-black tracking-tight text-foreground">
+                                     Today's Classes
+                                 </h3>
+                                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mt-0.5">Live Surveillance</p>
+                             </div>
                         </div>
                     
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 self-end md:self-auto">
                             {/* Department Filter */}
                             <Select value={dept} onValueChange={(v) => { setDept(v); setSection('all-sections'); }}>
-                                <SelectTrigger className="w-[100px] h-8 text-xs bg-secondary/50 dark:bg-secondary/30 border-border/50 text-foreground">
+                                <SelectTrigger className="w-[100px] h-[30px] text-[11px] font-bold border-border/40 bg-background/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 text-foreground backdrop-blur-md shadow-sm rounded-lg ring-inset focus:ring-1 focus:ring-primary/40 focus:border-primary/40">
                                     <SelectValue placeholder="Dept" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-popover/95 backdrop-blur-xl border-border/50">
-                                    <SelectItem value="all-dept">All Depts</SelectItem>
+                                <SelectContent className="backdrop-blur-2xl bg-popover/90 dark:bg-popover/80 border-border/40 rounded-xl shadow-xl">
+                                    <SelectItem value="all-dept" className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">All Depts</SelectItem>
                                     {filteredDepartments.map(d => (
-                                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                                        <SelectItem key={d.value} value={d.value} className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">{d.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
 
                             {/* Year Filter */}
                             <Select value={year} onValueChange={setYear}>
-                                <SelectTrigger className="w-[85px] h-8 text-xs bg-secondary/50 dark:bg-secondary/30 border-border/50 text-foreground">
+                                <SelectTrigger className="w-[85px] h-[30px] text-[11px] font-bold border-border/40 bg-background/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 text-foreground backdrop-blur-md shadow-sm rounded-lg ring-inset focus:ring-1 focus:ring-primary/40 focus:border-primary/40">
                                     <SelectValue placeholder="Year" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-popover/95 backdrop-blur-xl border-border/50">
-                                    <SelectItem value="all-years">All Years</SelectItem>
+                                <SelectContent className="backdrop-blur-2xl bg-popover/90 dark:bg-popover/80 border-border/40 rounded-xl shadow-xl">
+                                    <SelectItem value="all-years" className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">All Years</SelectItem>
                                     {YEARS.map(y => (
-                                        <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>
+                                        <SelectItem key={y.value} value={y.value} className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">{y.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
 
                             {/* Section Filter */}
                             <Select value={section} onValueChange={setSection}>
-                                <SelectTrigger className="w-[85px] h-8 text-xs bg-secondary/50 dark:bg-secondary/30 border-border/50 text-foreground">
+                                <SelectTrigger className="w-[85px] h-[30px] text-[11px] font-bold border-border/40 bg-background/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 text-foreground backdrop-blur-md shadow-sm rounded-lg ring-inset focus:ring-1 focus:ring-primary/40 focus:border-primary/40">
                                     <SelectValue placeholder="Section" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-popover/95 backdrop-blur-xl border-border/50">
-                                    <SelectItem value="all-sections">All Sec</SelectItem>
+                                <SelectContent className="backdrop-blur-2xl bg-popover/90 dark:bg-popover/80 border-border/40 rounded-xl shadow-xl">
+                                    <SelectItem value="all-sections" className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">All Sec</SelectItem>
                                     {availableSections.map(s => (
-                                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                                        <SelectItem key={s} value={s} className="text-xs font-semibold focus:bg-primary/10 focus:text-primary">{s}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -130,12 +133,12 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 p-4">
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <CardContent className="flex-1 p-5 lg:p-6 overflow-hidden flex flex-col">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 auto-rows-max overflow-y-auto pr-2 pb-2 h-[450px] scrollbar-thin scrollbar-thumb-border/50 hover:scrollbar-thumb-border scrollbar-track-transparent">
                     {filteredClasses.length === 0 ? (
-                        <div className="col-span-full py-12 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 dark:bg-muted/10 rounded-xl border border-dashed border-border/40">
-                            <Clock className="mb-2 h-8 w-8 opacity-20" />
-                            <p className="text-sm">No classes found for selected filters.</p>
+                        <div className="col-span-full py-20 flex flex-col items-center justify-center text-muted-foreground/60 rounded-2xl border border-dashed border-border/40 bg-muted/10">
+                            <Clock className="mb-4 h-12 w-12 opacity-20" />
+                            <p className="text-sm font-semibold tracking-tight">No classes found for selected filters.</p>
                         </div>
                     ) : (
                         filteredClasses.map((session, index) => {
@@ -149,88 +152,100 @@ const ClassAttendance = ({ classes, onFilterChange }: ClassAttendanceProps) => {
                                 ? format(new Date(session.end_time), 'h:mm a') 
                                 : '';
 
+                            const colors = getAttendanceColor(percentage);
+                            const textClass = colors.split(' ')[0]; // Returns text-xxx-xxx
+                            const bgClass = colors.split(' ')[colors.split(' ').length - 1]; // Returns bg-xxx-xxx
+
                             return (
-                                <Card key={index} className={cn(
-                                    "h-full border border-border/30 bg-card/60 dark:bg-card/40 hover:bg-card/80 dark:hover:bg-card/60 hover:border-primary/30 transition-all group shadow-sm",
-                                    session.status === 'Ongoing' && "ring-1 ring-primary/30 border-primary/20"
-                                )}>
-                                    <CardContent className="p-4">
-                                    <div className="flex justify-between items-start mb-3">
+                                <div key={index} className="group relative">
+                                    {/* Ongoing Ambient Glow */}
+                                    {session.status === 'Ongoing' && (
+                                         <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-orange-500/30 rounded-3xl blur-md opacity-70 animate-pulse pointer-events-none" />
+                                    )}
+                                    <Card className={cn(
+                                        "h-full relative overflow-hidden flex flex-col border border-border/40 bg-card/60 backdrop-blur-md shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 rounded-2xl",
+                                        session.status === 'Ongoing' && "border-primary/30 shadow-[0_0_20px_rgba(var(--primary),0.1)]",
+                                        session.status === 'Completed' && "opacity-80 hover:opacity-100" // Completed slightly greyed out
+                                    )}>
+                                        <CardContent className="p-4 sm:p-5 flex flex-col h-full justify-between">
                                             <div>
-                                                {/* Class heading: CSE-3A • P2 */}
-                                                <h4 className="font-bold text-sm leading-none mb-1 text-foreground group-hover:text-primary transition-colors">
-                                                    {session.target_dept}-{session.target_year}{session.target_section} <span className="text-muted-foreground font-normal">•</span> {session.slot_id?.toUpperCase() || `P${index + 1}`}
-                                                </h4>
-                                                {/* Faculty name */}
-                                                <p className="text-[11px] text-muted-foreground">
-                                                    {(session as any).profiles?.full_name || 'Faculty'}
-                                                </p>
-                                                {/* Subject name below */}
-                                                <div className="flex items-center gap-1 mt-1">
-                                                    <BookOpen className="h-3 w-3 text-muted-foreground/50" />
-                                                    <span className="text-[10px] text-muted-foreground/70">
-                                                        {session.subjects?.name || 'Subject'} ({session.subjects?.code})
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="space-y-1">
+                                                        <h4 className="font-bold text-[15px] leading-none text-foreground group-hover:text-primary transition-colors tracking-tight flex items-center gap-1.5">
+                                                            {session.target_dept}-{session.target_year}{session.target_section}
+                                                            <span className="text-muted-foreground/50 font-normal text-xs px-1.5 py-0.5 rounded-md bg-secondary border border-border/30">
+                                                                 {session.slot_id?.toUpperCase() || `P${index + 1}`}
+                                                            </span>
+                                                        </h4>
+                                                        <p className="text-[11px] font-semibold text-muted-foreground/80 uppercase tracking-widest line-clamp-1">
+                                                            {(session as any).profiles?.full_name || 'Faculty'}
+                                                        </p>
+                                                    </div>
+                                                    <Badge variant={session.status === 'Ongoing' ? "default" : "secondary"} className={cn(
+                                                        "capitalize text-[10px] font-bold px-2 py-0.5 transition-all shadow-none",
+                                                        session.status === 'Ongoing' && "bg-gradient-to-r from-primary to-orange-500 text-white shadow-md shadow-primary/20",
+                                                        session.status === 'Completed' && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+                                                        session.status === 'Upcoming' && "bg-muted/50 text-muted-foreground border border-border/50",
+                                                    )}>
+                                                        {session.status}
+                                                    </Badge>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 mt-2 bg-secondary/40 p-2 rounded-lg border border-border/30">
+                                                    <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                    <span className="text-[11px] font-semibold text-foreground line-clamp-1">
+                                                        {session.subjects?.name || 'Subject'} <span className="text-muted-foreground/70 tracking-widest font-mono text-[10px]">({session.subjects?.code})</span>
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <Badge variant={session.status === 'Ongoing' ? "default" : "secondary"} className={cn(
-                                                    "capitalize text-[9px] px-1.5 py-0.5",
-                                                    session.status === 'Ongoing' && "bg-primary animate-pulse shadow-lg shadow-primary/20",
-                                                    session.status === 'Completed' && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-                                                    session.status === 'Upcoming' && "bg-muted text-muted-foreground",
-                                                )}>
-                                                    {session.status}
-                                                </Badge>
-                                            </div>
-                                    </div>
 
-                                    <div className="space-y-2.5">
-                                        {/* Stats */}
-                                        <div className="grid grid-cols-3 gap-1.5 text-xs">
-                                            <div className="p-1.5 rounded bg-muted/40 dark:bg-muted/20 flex flex-col items-center">
-                                                <span className="text-[9px] text-muted-foreground">Present</span>
-                                                <span className="text-sm font-bold text-foreground">{session.present_count}</span>
-                                            </div>
-                                            <div className="p-1.5 rounded bg-muted/40 dark:bg-muted/20 flex flex-col items-center">
-                                                <span className="text-[9px] text-muted-foreground">Absent</span>
-                                                <span className="text-sm font-bold text-red-500">{session.absent_count}</span>
-                                            </div>
-                                            <div className="p-1.5 rounded bg-muted/40 dark:bg-muted/20 flex flex-col items-center">
-                                                <span className="text-[9px] text-muted-foreground">OD</span>
-                                                <span className="text-sm font-bold text-amber-500">{session.od_count}</span>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Progress */}
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-xs">
-                                                <span className="text-[10px] text-muted-foreground">Attendance</span>
-                                                <span className={cn("text-[10px] font-bold", getAttendanceColor(percentage))}>{percentage}%</span>
-                                            </div>
-                                            <div className="h-1.5 w-full bg-muted/50 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={cn("h-full rounded-full transition-all duration-500", 
-                                                        percentage >= 85 ? "bg-green-500" :
-                                                        percentage >= 75 ? "bg-amber-500" : "bg-red-500"
-                                                    )}
-                                                    style={{ width: `${percentage}%` }}
-                                                />
-                                            </div>
-                                        </div>
+                                            <div className="mt-5 space-y-4">
+                                                {/* Stats */}
+                                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                                    <div className="px-2 py-1.5 rounded-lg bg-green-500/10 dark:bg-green-500/5 flex flex-col items-center border border-green-500/10">
+                                                        <span className="text-[9px] font-bold text-green-600/70 dark:text-green-400/70 uppercase">Present</span>
+                                                        <span className="text-sm font-black text-green-600 dark:text-green-400">{session.present_count}</span>
+                                                    </div>
+                                                    <div className="px-2 py-1.5 rounded-lg bg-red-500/10 dark:bg-red-500/5 flex flex-col items-center border border-red-500/10">
+                                                        <span className="text-[9px] font-bold text-red-600/70 dark:text-red-400/70 uppercase">Absent</span>
+                                                        <span className="text-sm font-black text-red-600 dark:text-red-400">{session.absent_count}</span>
+                                                    </div>
+                                                    <div className="px-2 py-1.5 rounded-lg bg-amber-500/10 dark:bg-amber-500/5 flex flex-col items-center border border-amber-500/10">
+                                                        <span className="text-[9px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase">OD</span>
+                                                        <span className="text-sm font-black text-amber-600 dark:text-amber-400">{session.od_count}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Progress Line */}
+                                                <div className="space-y-1.5">
+                                                    <div className="flex justify-between text-xs items-center">
+                                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Attendance</span>
+                                                        <span className={cn("text-xs font-black", textClass)}>{percentage}%</span>
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-secondary dark:bg-muted/30 rounded-full overflow-hidden shadow-inner relative">
+                                                        {/* Base track */}
+                                                        <div className="absolute inset-0 bg-secondary/50" />
+                                                        {/* Filled percentage */}
+                                                        <div 
+                                                            className={cn("h-full rounded-full transition-all duration-1000 ease-out relative z-10 shadow-sm", bgClass)}
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
 
-                                        {/* Footer */}
-                                        <div className="flex justify-between items-center text-[9px] text-muted-foreground pt-1.5 border-t border-border/20">
-                                            <span className="flex items-center gap-1">
-                                                <Users size={10} /> {session.total_students} students
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <Clock size={10} /> {startTimeDisplay}{endTimeDisplay && ` - ${endTimeDisplay}`}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    </CardContent>
-                                </Card>
+                                                {/* Footer */}
+                                                <div className="flex justify-between items-center text-[10px] font-semibold text-muted-foreground pt-3 border-t border-border/30">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Users className="h-3 w-3" /> {session.total_students}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5">
+                                                        <Clock className="h-3 w-3" /> {startTimeDisplay}{endTimeDisplay && ` - ${endTimeDisplay}`}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
                             );
                         })
                     )}

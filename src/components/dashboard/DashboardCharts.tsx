@@ -29,13 +29,13 @@ const PREMIUM_COLORS = {
 function PremiumTooltip({ active, payload, label }: any) {
     if (!active || !payload) return null;
     return (
-        <div className="bg-popover/95 dark:bg-popover/95 backdrop-blur-xl border border-border/50 rounded-xl px-4 py-3 shadow-xl">
-            {label && <p className="text-xs font-bold text-foreground mb-1.5">{label}</p>}
+        <div className="bg-popover/90 dark:bg-popover/80 backdrop-blur-xl border border-border/50 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+            {label && <p className="text-sm font-black text-foreground mb-2">{label}</p>}
             {payload.map((entry: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 text-xs py-0.5">
-                    <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: entry.color || entry.fill }} />
-                    <span className="text-muted-foreground">{entry.name}:</span>
-                    <span className="font-bold text-foreground">{entry.value}</span>
+                <div key={i} className="flex items-center gap-3 text-xs py-1">
+                    <div className="w-3 h-3 rounded-md shadow-sm" style={{ backgroundColor: entry.color || entry.fill }} />
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">{entry.name}:</span>
+                    <span className="font-bold text-foreground ml-auto">{entry.value}</span>
                 </div>
             ))}
         </div>
@@ -79,44 +79,42 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
 
     if (type === "attendance-donut") {
         return (
-            <Card className="bg-card border border-border shadow-sm h-full overflow-hidden rounded-2xl transition-all duration-300">
-                <CardHeader className="pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                        <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
-                            <PieChartIcon className="h-3.5 w-3.5" />
+            <Card className="bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] h-full overflow-hidden rounded-[1.5rem] transition-all duration-300">
+                <CardHeader className="pb-3 pt-5 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2.5 text-foreground">
+                        <div className="p-1.5 rounded-[10px] bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
+                            <PieChartIcon className="h-4 w-4" />
                         </div>
                         {title || "Today's Overview"}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="p-3">
+                <CardContent className="p-4 md:p-5">
                     {classData.length === 0 ? (
-                        <div className="text-muted-foreground text-sm text-center py-8">
-                            <PieChartIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                            No attendance data today
+                        <div className="text-muted-foreground/60 text-sm text-center py-12 flex flex-col items-center justify-center">
+                            <PieChartIcon className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                            <p className="font-semibold tracking-tight">No attendance data today</p>
                         </div>
                     ) : (
                         <div>
                             {/* Class-wise horizontal bars: Total (grey) vs Present (orange) */}
-                            <div className="space-y-2.5">
+                            <div className="space-y-4">
                                 {classData.map((c, i) => {
                                     const pct = c.total > 0 ? Math.round((c.present / c.total) * 100) : 0;
                                     return (
-                                        <div key={i}>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-xs font-semibold text-foreground">{c.name}</span>
-                                                <span className="text-[10px] text-muted-foreground">
+                                        <div key={i} className="group cursor-default">
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <span className="text-xs font-bold tracking-tight text-foreground/80 group-hover:text-foreground transition-colors">{c.name}</span>
+                                                <span className="text-[10px] text-muted-foreground font-semibold">
                                                     <span className="font-bold text-foreground">{c.present}</span>/{c.total} ({pct}%)
                                                 </span>
                                             </div>
-                                            <div className="h-3 w-full bg-muted/50 dark:bg-muted/30 rounded-full overflow-hidden relative">
-                                                {/* Total bar (full width background) */}
+                                            <div className="h-4 w-full bg-secondary dark:bg-muted/30 rounded-full overflow-hidden relative border border-black/5 dark:border-white/5 shadow-inner">
                                                 <div 
-                                                    className="absolute inset-0 rounded-full bg-muted/30"
+                                                    className="absolute inset-0 bg-muted/30"
                                                     style={{ width: '100%' }}
                                                 />
-                                                {/* Present bar */}
                                                 <div 
-                                                    className="h-full rounded-full transition-all duration-700 ease-out relative z-10"
+                                                    className="h-full rounded-full transition-all duration-1000 ease-out relative z-10 shadow-sm"
                                                     style={{ 
                                                         width: `${pct}%`, 
                                                         backgroundColor: pct >= 85 ? 'hsl(28, 90%, 48%)' : pct >= 75 ? 'hsl(36, 100%, 50%)' : 'hsl(0, 72%, 51%)' 
@@ -128,18 +126,18 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
                                 })}
                             </div>
                             {/* Summary */}
-                            <div className="mt-4 pt-3 border-t border-border/20 flex items-center justify-around">
-                                <div className="text-center">
-                                    <span className="text-lg font-bold text-foreground">{totalStudents}</span>
-                                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total</p>
+                            <div className="mt-6 pt-5 border-t border-border/30 flex items-center justify-around bg-secondary/20 rounded-2xl mx-1 mb-1 shadow-inner">
+                                <div className="text-center p-2">
+                                    <span className="flex text-2xl font-black text-foreground tracking-tighter drop-shadow-sm">{totalStudents}</span>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Total</p>
                                 </div>
-                                <div className="text-center">
-                                    <span className="text-lg font-bold text-primary">{presentPercent}%</span>
-                                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Present</p>
+                                <div className="text-center p-2">
+                                    <span className="flex text-2xl font-black text-primary tracking-tighter drop-shadow-sm">{presentPercent}%</span>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Present</p>
                                 </div>
-                                <div className="text-center">
-                                    <span className="text-lg font-bold text-red-500">{totalStudents - (donutData.find(d => d.name === 'Present')?.value || 0) - (donutData.find(d => d.name === 'OD')?.value || 0)}</span>
-                                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Absent</p>
+                                <div className="text-center p-2">
+                                    <span className="flex text-2xl font-black text-red-500 tracking-tighter drop-shadow-sm">{totalStudents - (donutData.find(d => d.name === 'Present')?.value || 0) - (donutData.find(d => d.name === 'OD')?.value || 0)}</span>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Absent</p>
                                 </div>
                             </div>
                         </div>
@@ -165,32 +163,32 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
         }, [todayClasses]);
         
         return (
-            <Card className="bg-card border border-border shadow-sm h-full overflow-hidden rounded-2xl transition-all duration-300">
-                <CardHeader className="pb-2 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                        <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
-                            <BarChart3 className="h-3.5 w-3.5" />
+            <Card className="bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] h-full overflow-hidden rounded-[1.5rem] transition-all duration-300">
+                <CardHeader className="pb-3 pt-5 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2.5 text-foreground">
+                        <div className="p-1.5 rounded-[10px] bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
+                            <BarChart3 className="h-4 w-4" />
                         </div>
                         {title || "Department Breakdown"}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="pl-0 pb-2 h-[250px]">
+                <CardContent className="pl-0 pb-4 h-[250px] md:h-[300px] pt-4">
                     {deptData.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                            <BarChart3 className="h-8 w-8 mr-2 opacity-20" />
-                            No department data
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground/60 text-sm">
+                            <BarChart3 className="h-10 w-10 mb-3 opacity-20" />
+                            <p className="font-semibold tracking-tight">No department data</p>
                         </div>
                     ) : (
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart layout="vertical" data={deptData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="dept" type="category" axisLine={false} tickLine={false} width={65}
-                                    tick={{ fontSize: 11, fill: '#64748b' }} />
-                                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} content={<PremiumTooltip />} />
-                                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                                <Bar dataKey="present" name="Present" fill={PREMIUM_COLORS.present} radius={[0, 4, 4, 0]} barSize={10} />
-                                <Bar dataKey="od" name="OD" fill={PREMIUM_COLORS.od} radius={[0, 4, 4, 0]} barSize={10} />
-                                <Bar dataKey="absent" name="Absent" fill={PREMIUM_COLORS.absent} radius={[0, 4, 4, 0]} barSize={10} />
+                                <YAxis dataKey="dept" type="category" axisLine={false} tickLine={false} width={70}
+                                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} />
+                                <Tooltip cursor={{ fill: 'var(--muted)', opacity: 0.4, rx: 8 }} content={<PremiumTooltip />} />
+                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingTop: '16px' }} />
+                                <Bar dataKey="present" name="Present" fill={PREMIUM_COLORS.present} radius={[0, 4, 4, 0]} barSize={12} />
+                                <Bar dataKey="od" name="OD" fill={PREMIUM_COLORS.od} radius={[0, 4, 4, 0]} barSize={12} />
+                                <Bar dataKey="absent" name="Absent" fill={PREMIUM_COLORS.absent} radius={[0, 4, 4, 0]} barSize={12} />
                             </BarChart>
                         </ResponsiveContainer>
                     )}

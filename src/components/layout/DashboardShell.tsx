@@ -44,9 +44,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
             {/* Main Content Wrapper — offset by sidebar width */}
             <div className={cn(
-                "flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 relative bg-background",
-                "md:ml-[250px]",
-                isSidebarCollapsed && "md:ml-[72px]",
+                "flex-1 flex flex-col h-full overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] relative bg-background",
+                "md:ml-[280px]",
+                isSidebarCollapsed && "md:ml-[88px]",
                 "print:ml-0 print:h-auto print:overflow-visible"
             )}>
                 {/* === Zen Background (Interactive Cursor Tracking) === */}

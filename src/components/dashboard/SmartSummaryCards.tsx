@@ -19,13 +19,14 @@ function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string
     useEffect(() => {
         if (ref.current !== null) cancelAnimationFrame(ref.current);
         const start = performance.now();
-        const duration = 800;
+        const duration = 1200; // slightly longer for premium feel
         const from = 0;
         const to = value;
 
         const animate = (now: number) => {
             const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+            // easeOutExpo
+            const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
             setDisplay(Math.round(from + (to - from) * eased));
             if (progress < 1) ref.current = requestAnimationFrame(animate);
         };
@@ -87,49 +88,60 @@ export function SmartSummaryCards({ todayClasses, leaveRequests, attendancePerce
 
     const getColorClasses = (color: string) => {
         switch (color) {
-            case 'emerald': return { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500/20' };
-            case 'amber': return { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', ring: 'ring-amber-500/20' };
-            case 'red': return { bg: 'bg-red-500/10', text: 'text-red-500', ring: 'ring-red-500/20' };
-            default: return { bg: 'bg-primary/10', text: 'text-primary', ring: 'ring-primary/20' };
+            case 'emerald': return { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500/20', gradient: 'from-emerald-400 to-emerald-600' };
+            case 'amber': return { bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400', ring: 'ring-amber-500/20', gradient: 'from-amber-400 to-amber-600' };
+            case 'red': return { bg: 'bg-red-500/10', text: 'text-red-500', ring: 'ring-red-500/20', gradient: 'from-red-400 to-red-600' };
+            default: return { bg: 'bg-primary/10', text: 'text-primary', ring: 'ring-primary/20', gradient: 'from-primary to-orange-500' };
         }
     };
 
     const TrendIcon = ({ trend }: { trend: string }) => {
-        if (trend === 'up') return <TrendingUp className="h-3 w-3 text-emerald-500" />;
-        if (trend === 'down') return <TrendingDown className="h-3 w-3 text-red-500" />;
-        return <Minus className="h-3 w-3 text-muted-foreground" />;
+        if (trend === 'up') return <TrendingUp className="h-4 w-4 text-emerald-500" />;
+        if (trend === 'down') return <TrendingDown className="h-4 w-4 text-red-500" />;
+        return <Minus className="h-4 w-4 text-muted-foreground opacity-50" />;
     };
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat, i) => {
                 const colors = getColorClasses(stat.color);
                 const Icon = stat.icon;
                 return (
                     <div
                         key={i}
-                        className="group relative p-4 rounded-2xl bg-card border border-border shadow-sm transition-all duration-300 overflow-hidden"
+                        className="group relative p-5 md:p-6 rounded-3xl bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-all duration-500 overflow-hidden hover:shadow-lg hover:-translate-y-1"
                     >
-                        {/* Gradient left accent line */}
-                        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-gradient-to-b from-primary via-amber-500 to-orange-500 opacity-60 group-hover:opacity-100 transition-opacity" />
-                        {/* Subtle gradient overlay on hover */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-amber-500/[0.02] opacity-40 group-hover:opacity-100 transition-opacity" />
+                        {/* Gradient active border glow */}
+                        <div className="absolute inset-0 rounded-3xl p-[1px] bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
                         
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className={`p-2 rounded-xl ${colors.bg} ${colors.ring} ring-1`}>
-                                    <Icon className={`h-4 w-4 ${colors.text}`} />
+                        {/* Subtle ambient hover glow */}
+                        <div className={`absolute -inset-20 bg-gradient-to-br ${colors.gradient} opacity-0 group-hover:opacity-[0.03] blur-2xl transition-opacity duration-700 pointer-events-none`} />
+
+                        {/* Top gradient accent line inside */}
+                        <div className={`absolute top-0 inset-x-0 h-1 bg-gradient-to-r ${colors.gradient} opacity-40 group-hover:opacity-100 transition-opacity duration-500`} />
+                        
+                        <div className="relative z-10 flex flex-col h-full justify-between">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className={`p-2.5 rounded-2xl ${colors.bg} ${colors.ring} ring-1 shadow-inner relative overflow-hidden`}>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient} opacity-10`} />
+                                    <Icon className={`h-5 w-5 ${colors.text} relative z-10`} />
                                 </div>
-                                <TrendIcon trend={stat.trend} />
+                                <div className="p-1.5 rounded-full bg-secondary/80 backdrop-blur border border-border/40 shadow-sm">
+                                    <TrendIcon trend={stat.trend} />
+                                </div>
                             </div>
-                            <div className="text-2xl font-extrabold text-foreground tracking-tight">
-                                <AnimatedNumber value={stat.value} suffix={stat.suffix} />
+                            
+                            <div>
+                                <div className="text-3xl md:text-4xl font-black text-foreground tracking-tighter drop-shadow-sm mb-1 group-hover:scale-[1.02] origin-left transition-transform duration-500">
+                                    <AnimatedNumber value={stat.value} suffix={stat.suffix} />
+                                </div>
+                                <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest leading-tight">{stat.label}</p>
                             </div>
-                            <p className="text-[11px] font-semibold text-muted-foreground mt-0.5 uppercase tracking-wider">{stat.label}</p>
-                            <p className="text-[10px] text-muted-foreground/70 mt-1.5 flex items-center gap-1">
-                                {stat.color === 'red' && <AlertTriangle className="h-2.5 w-2.5 text-red-400" />}
+                            
+                            <div className={`mt-4 pt-4 border-t border-border/40 text-[11px] font-semibold flex items-center gap-1.5 transition-colors ${stat.color === 'red' ? 'text-red-500/80' : 'text-muted-foreground/80'}`}>
+                                {stat.color === 'red' && <AlertTriangle className="h-3 w-3 text-red-500" />}
                                 {stat.trendText}
-                            </p>
+                            </div>
                         </div>
                     </div>
                 );

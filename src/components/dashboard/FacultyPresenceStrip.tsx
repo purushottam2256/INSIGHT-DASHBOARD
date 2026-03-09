@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Users, UserCheck, CalendarOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Card } from '@/components/ui/card';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface FacultyMember {
     id: string;
@@ -17,6 +20,7 @@ export function FacultyPresenceStrip() {
 
     useEffect(() => {
         const fetchPresence = async () => {
+             // Keep existing fetch logic
             try {
                 // Fetch all faculty profiles
                 const { data: profiles } = await supabase
@@ -61,73 +65,87 @@ export function FacultyPresenceStrip() {
 
     if (loading) {
         return (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
-                <div className="animate-pulse flex gap-2">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="w-9 h-9 rounded-full bg-muted shimmer" />
+            <Card className="flex items-center gap-4 p-4 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)]">
+                <div className="w-10 h-10 rounded-xl bg-muted/50 shimmer shrink-0" />
+                <div className="flex gap-3 overflow-hidden">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="w-10 h-10 rounded-full bg-muted/50 shimmer shrink-0" />
                     ))}
                 </div>
-            </div>
+            </Card>
         );
     }
 
     if (faculty.length === 0) return null;
 
     return (
-        <div className="px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-                        <Users className="h-3.5 w-3.5 text-primary" />
+        <Card className="p-4 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] flex flex-col md:flex-row md:items-center gap-4 transition-all duration-300">
+            {/* Left Header Area */}
+            <div className="flex items-center justify-between md:flex-col md:items-start md:justify-center md:min-w-[140px] md:pr-4 md:border-r border-border/30 gap-2 shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-primary to-orange-500 text-white shadow-md shadow-primary/20">
+                        <Users className="h-4 w-4" />
                     </div>
-                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Faculty Presence</span>
+                    <div>
+                        <h3 className="text-sm font-black tracking-tight text-foreground leading-none">
+                            Faculty
+                        </h3>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Status</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-3 text-[10px] font-semibold">
-                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                
+                <div className="flex items-center gap-3 mt-1 text-[11px] font-bold tracking-tight">
+                    <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                         <UserCheck className="h-3 w-3" />
-                        {presentCount} Present
+                        {presentCount} 
                     </span>
                     {leaveCount > 0 && (
-                        <span className="flex items-center gap-1 text-red-500">
+                        <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400 bg-red-500/10 px-2 py-0.5 rounded-md border border-red-500/20">
                             <CalendarOff className="h-3 w-3" />
-                            {leaveCount} Leave
+                            {leaveCount} 
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* Avatar strip with horizontal scroll */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                {faculty.map((f) => (
-                    <div key={f.id} className="relative group shrink-0">
-                        <Avatar className={`h-9 w-9 border-2 transition-transform group-hover:scale-110 ${
-                            f.isOnLeave 
-                                ? 'border-red-400/50 opacity-50 grayscale' 
-                                : 'border-emerald-400/50'
-                        }`}>
-                            <AvatarImage src={f.avatar_url} />
-                            <AvatarFallback className={`text-[10px] font-bold ${
-                                f.isOnLeave 
-                                    ? 'bg-red-500/10 text-red-400' 
-                                    : 'bg-primary/10 text-primary'
-                            }`}>
-                                {f.full_name.charAt(0)}
-                            </AvatarFallback>
-                        </Avatar>
-                        {/* Status dot */}
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${
-                            f.isOnLeave ? 'bg-red-400' : 'bg-emerald-400'
-                        }`} />
-                        {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50">
-                            <div className="bg-foreground text-background text-[10px] font-medium px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
-                                {f.full_name}
-                                {f.isOnLeave && <span className="text-red-300 ml-1">· On Leave</span>}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
+            {/* Scrolling Avatars */}
+            <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex gap-2.5 pb-2 pt-1 px-1">
+                        {faculty.map((f) => (
+                                    <div key={f.id} className="relative group shrink-0 cursor-pointer" title={`${f.full_name} (${f.isOnLeave ? 'On Leave' : 'Present'})`}>
+                                        <Avatar className={cn(
+                                            "h-10 w-10 border-2 transition-all duration-300 group-hover:scale-110 shadow-sm",
+                                            f.isOnLeave 
+                                                ? "border-red-500/40 opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100" 
+                                                : "border-primary/50 group-hover:border-primary shadow-[0_0_15px_rgba(var(--primary),0.1)] group-hover:shadow-[0_0_20px_rgba(var(--primary),0.3)]"
+                                        )}>
+                                            <AvatarImage src={f.avatar_url || ''} />
+                                            <AvatarFallback className={cn(
+                                                "text-xs font-black uppercase tracking-wider",
+                                                f.isOnLeave 
+                                                    ? "bg-red-500/10 text-red-500" 
+                                                    : "bg-primary/10 text-primary"
+                                            )}>
+                                                {f.full_name.charAt(0)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        
+                                        {/* Status Glow Dot */}
+                                        <div className={cn(
+                                            "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background shadow-sm transition-all duration-300",
+                                            f.isOnLeave 
+                                                ? "bg-red-500" 
+                                                : "bg-emerald-500"
+                                        )}>
+                                            {!f.isOnLeave && (
+                                                <div className="absolute inset-0 rounded-full animate-ping opacity-50 bg-emerald-500" />
+                                            )}
+                                        </div>
+                                    </div>
+                        ))}
+                </div>
+                <ScrollBar orientation="horizontal" className="h-1.5" />
+            </ScrollArea>
+        </Card>
     );
 }

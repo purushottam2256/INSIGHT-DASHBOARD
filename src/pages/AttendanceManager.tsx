@@ -199,11 +199,11 @@ export function AttendanceManager() {
             </div>
 
             {sessions.length > 0 && roster.length > 0 ? (
-                <Card className="border-border shadow-sm overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20 pb-4">
+                <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between border-b border-border/30 bg-secondary/50 dark:bg-secondary/20 pb-4">
                         <div>
-                            <CardTitle>Attendance Record</CardTitle>
-                            <CardDescription>
+                            <CardTitle className="text-[15px] font-black tracking-tight text-foreground">Attendance Record</CardTitle>
+                            <CardDescription className="text-[11px] font-semibold uppercase tracking-widest mt-1">
                                 {filters.year} Year • {filters.dept} • Section {filters.section} — {format(new Date(`${filters.month}-01`), 'MMMM yyyy')}
                             </CardDescription>
                         </div>
@@ -332,11 +332,13 @@ export function AttendanceManager() {
                     </CardContent>
                 </Card>
             ) : roster.length > 0 && !loading && sessions.length === 0 ? (
-                 <Card className="border-border shadow-sm border-dashed">
+                 <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden border-dashed">
                      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                         <AlertCircle className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                         <h3 className="text-lg font-medium">No Sessions Found</h3>
-                         <p className="text-muted-foreground mt-1 max-w-sm">There are no attendance sessions logged for this class in {format(new Date(`${filters.month}-01`), 'MMMM yyyy')}.</p>
+                         <div className="p-4 rounded-full bg-muted/30 mb-4 ring-8 ring-muted/10">
+                             <AlertCircle className="h-10 w-10 text-muted-foreground" />
+                         </div>
+                         <h3 className="text-lg font-black tracking-tight">No Sessions Found</h3>
+                         <p className="text-sm font-medium text-muted-foreground mt-2 max-w-sm leading-relaxed">There are no attendance sessions logged for this class in {format(new Date(`${filters.month}-01`), 'MMMM yyyy')}.</p>
                      </CardContent>
                  </Card>
             ) : null}

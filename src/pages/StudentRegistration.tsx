@@ -351,16 +351,16 @@ export function StudentRegistration() {
         {/* Registration Form — Collapsible */}
         {showForm && (
         <div className="grid gap-4 lg:grid-cols-[1fr_280px] animate-slide-up">
-            <Card className={`border-border/40 shadow-sm transition-all ${editingId ? 'ring-2 ring-primary border-primary/50' : ''}`}>
-                <CardHeader className={`py-3 border-b border-border/40 ${editingId ? 'bg-primary/5' : 'bg-muted/20'}`}>
+            <Card className={`border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden transition-all ${editingId ? 'ring-2 ring-primary border-primary/50' : ''}`}>
+                <CardHeader className={`py-4 border-b border-border/30 ${editingId ? 'bg-primary/5' : 'bg-secondary/50 dark:bg-secondary/20'}`}>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-sm">{editingId ? "Edit Student" : "New Student"}</CardTitle>
-                            <CardDescription className="text-xs">Fields marked * are required. Others are optional.</CardDescription>
+                            <CardTitle className="text-[15px] font-black tracking-tight text-foreground">{editingId ? "Edit Student" : "New Student"}</CardTitle>
+                            <CardDescription className="text-[11px] font-semibold uppercase tracking-widest mt-1">Fields marked * are required. Others optional.</CardDescription>
                         </div>
                         {editingId && (
-                            <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs h-7">
-                                <X className="h-3 w-3 mr-1" /> Cancel
+                            <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs h-7 font-bold hover:bg-destructive/10 hover:text-destructive">
+                                <X className="h-3.5 w-3.5 mr-1" /> Cancel
                             </Button>
                         )}
                     </div>
@@ -483,10 +483,12 @@ export function StudentRegistration() {
             </Card>
 
             {/* BLE Beacon — Compact */}
-            <Card className="border-border/40 shadow-sm">
-                <CardHeader className="py-3 border-b border-border/40 bg-muted/20">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                        <Bluetooth className="h-4 w-4 text-blue-500" />
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                <CardHeader className="py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2 text-foreground">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                            <Bluetooth className="h-4 w-4" />
+                        </div>
                         BLE Beacon
                     </CardTitle>
                 </CardHeader>
@@ -520,8 +522,8 @@ export function StudentRegistration() {
         )}
 
         {/* Student List with Filters */}
-        <Card className="border-border/40 shadow-sm">
-            <CardHeader className="py-3 border-b border-border/40">
+        <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+            <CardHeader className="py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[200px]">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

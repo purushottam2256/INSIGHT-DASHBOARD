@@ -350,7 +350,7 @@ export function ComparePage() {
 
 
             {/* Controls Bar */}
-            <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl bg-card border border-border/50 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 p-4 border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
                 {/* Date Range */}
                 <Select value={timePeriod} onValueChange={(v: TimePeriod) => setTimePeriod(v)}>
                     <SelectTrigger className="w-36 rounded-xl bg-secondary/40 border-border/40">
@@ -453,7 +453,7 @@ export function ComparePage() {
                     {averages.map(({ cls, avg }, i) => (
                         <div 
                             key={cls} 
-                            className="p-4 rounded-xl bg-card border border-border/50 shadow-sm text-center group hover:border-primary/30 transition-all duration-200"
+                            className="p-4 rounded-[1.25rem] border-border/50 bg-card/60 backdrop-blur-lg shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] text-center group hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
                         >
                             <div 
                                 className="w-3 h-3 rounded-full mx-auto mb-2 shadow-sm"
@@ -468,8 +468,8 @@ export function ComparePage() {
             )}
 
             {/* Chart Card */}
-            <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
+            <div className="p-5 border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-primary" />
                         Attendance Trends

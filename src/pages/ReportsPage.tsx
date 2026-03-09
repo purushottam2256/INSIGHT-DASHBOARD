@@ -219,21 +219,38 @@ export function ReportsPage() {
                 });
                 setPerformanceData(rows.sort((a, b) => b.avgAttendance - a.avgAttendance));
             } else if (reportType === 'leaves') {
-                const { data, error } = await supabase
+                const { data: leavesData, error } = await supabase
                     .from('leaves')
-                    .select('user_id, status, profiles:user_id(full_name, dept)')
+                    .select('user_id, status')
                     .gte('start_date', startDate)
                     .lte('start_date', endDate);
 
                 if (error) throw error;
 
+                let profs: { id: string; full_name: string; dept: string }[] = [];
+                if (leavesData && leavesData.length > 0) {
+                    const userIds = [...new Set(leavesData.map(l => l.user_id))];
+                    const { data: profilesData } = await supabase
+                        .from('profiles')
+                        .select('id, full_name, dept')
+                        .in('id', userIds);
+                    profs = profilesData || [];
+                }
+
+                const profMap = new Map(profs.map(p => [p.id, p]));
+
                 const map = new Map<string, LeaveRow>();
-                (data || []).forEach((l: any) => {
+                (leavesData || []).forEach((l: any) => {
                     const key = l.user_id;
+                    const prof = profMap.get(key);
+                    
+                    // Client-side department filter
+                    if (dept !== 'all' && prof?.dept !== dept) return;
+
                     if (!map.has(key)) {
                         map.set(key, {
-                            faculty: l.profiles?.full_name || 'Unknown',
-                            dept: l.profiles?.dept || '-',
+                            faculty: prof?.full_name || 'Unknown',
+                            dept: prof?.dept || '-',
                             totalLeaves: 0,
                             approved: 0,
                             rejected: 0,
@@ -332,9 +349,9 @@ export function ReportsPage() {
             </div>
 
             {/* Filters Card */}
-            <Card className="border-border/40 shadow-lg bg-card/80 dark:bg-card/60 backdrop-blur-xl">
-                <CardHeader className="pb-3 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                <CardHeader className="pb-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2 text-foreground">
                         <Filter className="h-4 w-4 text-primary" />
                         Report Filters
                     </CardTitle>
@@ -413,12 +430,12 @@ export function ReportsPage() {
 
             {/* Results Table */}
             {hasData && (
-                <Card className="border-border/40 shadow-lg bg-card/80 dark:bg-card/60 backdrop-blur-xl overflow-hidden">
-                    <CardHeader className="pb-3 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20 flex-row items-center justify-between">
-                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                    <CardHeader className="pb-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20 flex-row items-center justify-between">
+                        <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2 text-foreground">
                             <FileSpreadsheet className="h-4 w-4 text-primary" />
                             {reportType === 'attendance' ? 'Institutional Attendance Matrix' : 'Results'}
-                            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold ml-2">
                                 {reportType === 'attendance' ? `${matrixData.length} classes × ${matrixDates.length} days` : reportType === 'workload' ? `${workloadData.length} faculty` : reportType === 'performance' ? `${performanceData.length} classes` : `${leaveData.length} rows`}
                             </span>
                             {reportType === 'attendance' && session !== 'all' && (

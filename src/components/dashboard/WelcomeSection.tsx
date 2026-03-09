@@ -63,13 +63,10 @@ const WelcomeSection = ({
                 dbStatus = 'rejected';
                 notifyMsg = 'Your leave request has been declined. Please contact your HOD for details.';
             } else {
-                // If currently pending at HOD -> escalate to Principal
                 if (leave.status === 'pending' || leave.status === 'pending_hod') {
                     dbStatus = 'pending_principal';
                     notifyMsg = 'Your leave request has been approved by HOD and forwarded to Principal.';
-                } 
-                // If currently pending at Principal -> fully approve
-                else if (leave.status === 'pending_principal') {
+                } else if (leave.status === 'pending_principal') {
                     dbStatus = 'approved';
                     notifyMsg = 'Your leave request has been fully approved. Have a good day!';
                 }
@@ -82,10 +79,8 @@ const WelcomeSection = ({
             
             if (error) throw error;
 
-            // Remove from local state
             setLocalLeaves(prev => prev.filter(l => l.id !== leave.id));
 
-            // Send FCM notification
             try {
                 await sendNotification([leave.user_id], {
                     title: `Leave Request Update`,
@@ -110,7 +105,6 @@ const WelcomeSection = ({
     const periodInfo = getCurrentPeriod();
     const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
     
-    // Show only pending leaves to the respective roles, and hide approved ones from the card list
     const visiblePendingLeaves = localLeaves.filter(l => {
         return ['pending', 'pending_hod', 'pending_principal'].includes(l.status);
     });
@@ -121,7 +115,6 @@ const WelcomeSection = ({
         return false;
     };
 
-    // Smart features: Sunday / Holiday detection
     const isSunday = currentTime.getDay() === 0;
     const todayStr = format(currentTime, 'yyyy-MM-dd');
     const [todayEvents, setTodayEvents] = useState<{ title: string; type: string }[]>([]);
@@ -129,7 +122,6 @@ const WelcomeSection = ({
     useEffect(() => {
         const fetchTodayEvents = async () => {
             try {
-                // Fetch from holidays table
                 const { data: dbEvents } = await supabase
                     .from('holidays')
                     .select('name, description')
@@ -156,67 +148,72 @@ const WelcomeSection = ({
     const todayExams = todayEvents.filter(e => e.type === 'exam');
     const isHoliday = isSunday || todayHolidays.length > 0;
     const smartBanner = isSunday
-        ? { text: '🌤️ Sunday — Enjoy your weekend!', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' }
+        ? { text: '🌤️ Sunday — Enjoy your weekend!', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shadow-amber-500/10' }
         : todayHolidays.length > 0
-            ? { text: `🎉 Holiday — ${todayHolidays[0].title}`, color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' }
+            ? { text: `🎉 Holiday — ${todayHolidays[0].title}`, color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 shadow-red-500/10' }
             : todayExams.length > 0
-                ? { text: `📝 Exam Day — ${todayExams[0].title}`, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' }
+                ? { text: `📝 Exam Day — ${todayExams[0].title}`, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 shadow-blue-500/10' }
                 : null;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Smart Hero Overview Card — spans 2 cols */}
-            <Card className="lg:col-span-2 bg-card border border-border shadow-sm rounded-2xl overflow-hidden relative transition-all duration-300">
-                <CardContent className="p-6 md:p-8 relative z-10 flex flex-col justify-between h-full">
+            <Card className="lg:col-span-2 bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-3xl overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                
+                <CardContent className="p-8 relative z-10 flex flex-col justify-between h-full">
                     <div>
                         {/* Dynamic Greeting */}
-                        <div className="flex items-center justify-between mb-2">
-                            <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                                {getGreeting()} 👋
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-3xl font-extrabold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/70">
+                                {getGreeting()}
                             </h2>
-                            <span className="text-xs text-muted-foreground font-medium">
+                            <div className="px-4 py-1.5 rounded-full bg-secondary/80 border border-border/40 backdrop-blur-md shadow-inner text-sm font-semibold text-muted-foreground">
                                 {format(currentTime, 'EEEE, MMM d, yyyy')}
-                            </span>
+                            </div>
                         </div>
 
                         {/* Smart Banner */}
                         {smartBanner && (
-                            <div className={`mt-3 px-4 py-2.5 rounded-xl border text-sm font-medium flex items-center gap-2 ${smartBanner.color}`}>
+                            <div className={`mt-4 px-5 py-3 rounded-2xl border shadow-sm text-sm font-bold flex items-center gap-2 ${smartBanner.color} backdrop-blur-md`}>
                                 {smartBanner.text}
                             </div>
                         )}
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
                             {/* Stat 1 */}
-                            <div className="p-4 rounded-xl border border-border/60 bg-secondary/20 flex flex-col justify-center items-center gap-2">
-                                <div className="p-2.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                    <Activity className="h-5 w-5" />
+                            <div className="p-5 rounded-2xl border border-border/40 bg-white/40 dark:bg-black/20 backdrop-blur-md shadow-sm flex flex-col justify-center items-center gap-3 relative overflow-hidden group/stat">
+                                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 opacity-0 group-hover/stat:opacity-100 transition-opacity" />
+                                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-inner">
+                                    <Activity className="h-6 w-6" />
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-2xl font-bold text-foreground leading-tight tracking-tight">{attendancePercent}%</h3>
-                                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Attendance Rate</p>
+                                    <h3 className="text-3xl font-black text-foreground leading-tight tracking-tight drop-shadow-sm">{attendancePercent}%</h3>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">Attendance Rate</p>
                                 </div>
                             </div>
                             
                             {/* Stat 2 */}
-                            <div className="p-4 rounded-xl border border-border/60 bg-secondary/20 flex flex-col justify-center items-center gap-2">
-                                <div className="p-2.5 rounded-full bg-primary/10 text-primary">
-                                    <Calendar className="h-5 w-5" />
+                            <div className="p-5 rounded-2xl border border-border/40 bg-white/40 dark:bg-black/20 backdrop-blur-md shadow-sm flex flex-col justify-center items-center gap-3 relative overflow-hidden group/stat">
+                                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-orange-400 opacity-0 group-hover/stat:opacity-100 transition-opacity" />
+                                <div className="p-3 rounded-xl bg-primary/10 text-primary shadow-inner">
+                                    <Calendar className="h-6 w-6" />
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-2xl font-bold text-foreground leading-tight tracking-tight">{isHoliday ? '—' : todayClassesCount}</h3>
-                                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{isHoliday ? 'No Classes Today' : 'Classes Today'}</p>
+                                    <h3 className="text-3xl font-black text-foreground leading-tight tracking-tight drop-shadow-sm">{isHoliday ? '—' : todayClassesCount}</h3>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">{isHoliday ? 'No Classes Today' : 'Classes Today'}</p>
                                 </div>
                             </div>
 
                             {/* Stat 3 */}
-                            <div className="p-4 rounded-xl border border-border/60 bg-secondary/20 flex flex-col justify-center items-center gap-2">
-                                <div className="p-2.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-500">
-                                    <Clock className="h-5 w-5" />
+                            <div className="p-5 rounded-2xl border border-border/40 bg-white/40 dark:bg-black/20 backdrop-blur-md shadow-sm flex flex-col justify-center items-center gap-3 relative overflow-hidden group/stat">
+                                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600 opacity-0 group-hover/stat:opacity-100 transition-opacity" />
+                                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-500 shadow-inner">
+                                    <Clock className="h-6 w-6" />
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-lg font-bold text-foreground leading-tight tracking-tight mt-1">{formattedTime}</h3>
-                                    <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">{isHoliday ? 'Day Off' : periodInfo.period}</p>
+                                    <h3 className="text-xl font-black text-foreground leading-tight tracking-tight drop-shadow-sm mt-1">{formattedTime}</h3>
+                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-1">{isHoliday ? 'Day Off' : periodInfo.period}</p>
                                 </div>
                             </div>
                         </div>
@@ -225,54 +222,59 @@ const WelcomeSection = ({
             </Card>
 
             {/* Faculty Leave Permissions — right column */}
-            <Card className="lg:col-span-1 bg-card border border-border shadow-sm rounded-2xl overflow-hidden flex flex-col transition-all duration-300">
-                <CardHeader className="pb-2 border-b border-border/20 bg-secondary/30 dark:bg-secondary/20 shrink-0">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
-                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
-                            <UserCheck className="h-3.5 w-3.5" />
+            <Card className="lg:col-span-1 bg-gradient-to-b from-card/80 to-card/40 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-3xl overflow-hidden flex flex-col">
+                <CardHeader className="pb-3 pt-5 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20 shrink-0 backdrop-blur-md">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2.5 text-foreground">
+                        <div className="p-[7px] rounded-[10px] bg-gradient-to-br from-primary to-orange-500 text-white shadow-md shadow-primary/20">
+                            <UserCheck className="h-4 w-4" />
                         </div>
                         Faculty Leave Requests
                         {visiblePendingLeaves.length > 0 && (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-primary/10 text-primary ml-auto">
-                                {visiblePendingLeaves.length}
+                            <Badge variant="secondary" className="px-2 py-0.5 text-[11px] font-bold bg-primary/15 text-primary ml-auto rounded-full ring-1 ring-primary/20">
+                                {visiblePendingLeaves.length} pending
                             </Badge>
                         )}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-1 p-0">
-                    <ScrollArea className="h-[180px] px-3 py-2">
+                    <ScrollArea className="h-[210px] px-4 py-3">
                         {visiblePendingLeaves.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm py-8">
-                                <CheckCircle2 className="h-8 w-8 mb-2 opacity-30" />
-                                <p className="text-xs">No pending leave requests</p>
+                            <div className="flex flex-col items-center justify-center h-[180px] text-muted-foreground text-sm opacity-60">
+                                <div className="p-4 rounded-full bg-secondary mb-3 ring-1 ring-border/50">
+                                    <CheckCircle2 className="h-8 w-8 text-emerald-500/70" />
+                                </div>
+                                <p className="font-semibold tracking-tight">No pending leave requests</p>
                             </div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 {visiblePendingLeaves.map((leave) => {
                                     const userCanAct = canActOn(leave.status);
                                     
                                     return (
-                                    <div key={leave.id} className="p-3 rounded-lg border border-border/30 bg-card/60 dark:bg-card/40 hover:border-primary/20 transition-all">
-                                        <div className="flex items-start gap-2.5 mb-2">
-                                            <Avatar className="h-7 w-7 shrink-0 border border-border/30">
+                                    <div key={leave.id} className="p-3.5 rounded-[1.2rem] border border-border/50 bg-white/50 dark:bg-black/20 backdrop-blur-md hover:border-primary/40 hover:shadow-md transition-all duration-300 relative group">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 rounded-[1.2rem] pointer-events-none transition-opacity" />
+                                        
+                                        <div className="flex items-start gap-3 mb-3 relative z-10">
+                                            <Avatar className="h-9 w-9 shrink-0 border-2 border-background shadow-xs">
                                                 <AvatarImage src={leave.profiles?.avatar_url} />
-                                                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                                                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-primary text-xs font-black">
                                                     {leave.profiles?.full_name?.charAt(0) || '?'}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
-                                                    <p className="text-xs font-semibold text-foreground truncate">{leave.profiles?.full_name || 'Faculty'}</p>
-                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${leave.status === 'pending_principal' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                                        {leave.status === 'pending_principal' ? 'Awaiting Principal' : 'Awaiting HOD'}
+                                                    <p className="text-sm font-bold tracking-tight text-foreground truncate group-hover:text-primary transition-colors">{leave.profiles?.full_name || 'Faculty'}</p>
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${leave.status === 'pending_principal' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                                                        {leave.status === 'pending_principal' ? 'Principal' : 'HOD'}
                                                     </span>
                                                 </div>
-                                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{leave.reason}</p>
-                                                <div className="flex items-center gap-1.5 mt-1">
-                                                    <Badge variant="outline" className="text-[9px] h-4 px-1 border-primary/20 text-primary">
+                                                <p className="text-[11px] font-medium text-muted-foreground truncate mt-0.5 pr-2">{leave.reason}</p>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 rounded border bg-transparent font-bold ${leave.leave_type === 'full_day' ? 'text-primary border-primary/30' : 'text-amber-500 border-amber-500/30'}`}>
                                                         {leave.leave_type === 'full_day' ? 'Full Day' : 'Half Day'}
                                                     </Badge>
-                                                    <span className="text-[9px] text-muted-foreground">
+                                                    <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                                                        <Calendar className="w-3 h-3" />
                                                         {format(new Date(leave.start_date), 'MMM d')}
                                                         {leave.start_date !== leave.end_date && ` - ${format(new Date(leave.end_date), 'MMM d')}`}
                                                     </span>
@@ -280,26 +282,26 @@ const WelcomeSection = ({
                                             </div>
                                         </div>
                                         
-                                        {/* Action Buttons - Only show if user has permission for THIS status */}
+                                        {/* Action Buttons */}
                                         {userCanAct && (
-                                            <div className="flex gap-1.5 mt-2 pt-2 border-t border-border/40">
+                                            <div className="flex gap-2 pt-3 border-t border-border/50 relative z-10">
                                                 <Button 
                                                     size="sm" 
-                                                    className="flex-1 h-7 text-[10px] bg-emerald-500 hover:bg-emerald-600 text-white gap-1"
+                                                    className="flex-1 h-8 rounded-xl text-[11px] font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-md shadow-emerald-500/20 border-none group/btn"
                                                     disabled={actionLoading === leave.id}
                                                     onClick={() => handleLeaveAction(leave, 'accepted')}
                                                 >
-                                                    {actionLoading === leave.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                                                    {actionLoading === leave.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 transition-transform group-hover/btn:scale-110" />}
                                                     {leave.status === 'pending_principal' ? 'Approve' : 'Forward to Principal'}
                                                 </Button>
                                                 <Button 
                                                     size="sm" 
                                                     variant="outline"
-                                                    className="flex-1 h-7 text-[10px] border-red-500/20 text-red-500 hover:bg-red-500/10 gap-1"
+                                                    className="flex-1 h-8 rounded-xl text-[11px] font-bold border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500/50 group/btn2 bg-transparent"
                                                     disabled={actionLoading === leave.id}
                                                     onClick={() => handleLeaveAction(leave, 'declined')}
                                                 >
-                                                    {actionLoading === leave.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                                                    {actionLoading === leave.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5 mr-1.5 transition-transform group-hover/btn2:scale-110" />}
                                                     Reject
                                                 </Button>
                                             </div>

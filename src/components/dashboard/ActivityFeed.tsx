@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ActivityItem {
     id: string;
@@ -16,12 +19,12 @@ interface ActivityItem {
 }
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
-    attendance: { icon: ClipboardCheck, color: 'text-primary', bg: 'bg-primary/10' },
-    leave_approved: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    leave_rejected: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
-    event_added: { icon: CalendarPlus, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    notification: { icon: Bell, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    registration: { icon: UserCheck, color: 'text-violet-500', bg: 'bg-violet-500/10' },
+    attendance: { icon: ClipboardCheck, color: 'text-primary', bg: 'bg-primary/10 border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5' },
+    leave_approved: { icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10 border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5' },
+    leave_rejected: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-500/5' },
+    event_added: { icon: CalendarPlus, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-blue-500/5' },
+    notification: { icon: Bell, color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-amber-500/5' },
+    registration: { icon: UserCheck, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-violet-500/5' },
 };
 
 export function ActivityFeed() {
@@ -57,22 +60,31 @@ export function ActivityFeed() {
                 // 2. Recent leave decisions
                 const { data: leaves } = await supabase
                     .from('leaves')
-                    .select('id, status, updated_at, profiles:user_id(full_name)')
+                    .select('id, status, updated_at, user_id')
                     .in('status', ['approved', 'rejected'])
                     .order('updated_at', { ascending: false })
                     .limit(5);
 
-                leaves?.forEach(l => {
-                    const name = (l as any).profiles?.full_name || 'Faculty';
-                    items.push({
-                        id: `leave-${l.id}`,
-                        type: l.status === 'approved' ? 'leave_approved' : 'leave_rejected',
-                        title: `Leave ${l.status} for ${name}`,
-                        description: l.status === 'approved' ? 'Request approved' : 'Request declined',
-                        timestamp: l.updated_at,
-                        actor: name,
+                if (leaves && leaves.length > 0) {
+                    const userIds = [...new Set(leaves.map(l => l.user_id))];
+                    const { data: profs } = await supabase
+                        .from('profiles')
+                        .select('id, full_name')
+                        .in('id', userIds);
+                    const profMap = new Map((profs || []).map(p => [p.id, p]));
+
+                    leaves.forEach(l => {
+                        const name = profMap.get(l.user_id)?.full_name || 'Faculty';
+                        items.push({
+                            id: `leave-${l.id}`,
+                            type: l.status === 'approved' ? 'leave_approved' : 'leave_rejected',
+                            title: `Leave ${l.status} for ${name}`,
+                            description: l.status === 'approved' ? 'Request approved' : 'Request declined',
+                            timestamp: l.updated_at,
+                            actor: name,
+                        });
                     });
-                });
+                }
 
                 // 3. Recent events added
                 const { data: events } = await supabase
@@ -85,7 +97,7 @@ export function ActivityFeed() {
                     items.push({
                         id: `event-${e.id}`,
                         type: 'event_added',
-                        title: `🎉 Holiday: ${e.name}`,
+                        title: `🎉 ${e.name}`,
                         description: `Added to calendar`,
                         timestamp: e.created_at,
                     });
@@ -126,61 +138,72 @@ export function ActivityFeed() {
     }, []);
 
     return (
-        <div className="rounded-2xl bg-card border border-border shadow-sm overflow-hidden transition-all duration-300 z-10">
+        <Card className="rounded-[1.5rem] bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] overflow-hidden transition-all duration-300 z-10 w-full mb-6">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-secondary/30 dark:bg-secondary/20">
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-                        <Activity className="h-3.5 w-3.5 text-primary" />
+            <CardHeader className="flex flex-row items-center justify-between px-6 py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-[10px] bg-gradient-to-br from-primary to-orange-500 text-white shadow-md shadow-primary/20">
+                        <Activity className="h-4 w-4" />
                     </div>
-                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Activity Feed</span>
+                    <div>
+                        <CardTitle className="text-[15px] font-black tracking-tight text-foreground">
+                            Activity Feed
+                        </CardTitle>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">Live Updates</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Live</span>
+                <div className="flex items-center gap-2 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 rounded-full shadow-sm">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">Live</span>
                 </div>
-            </div>
+            </CardHeader>
 
             {/* Feed list */}
-            <div className="max-h-[280px] overflow-y-auto scrollbar-thin">
-                {loading ? (
-                    <div className="p-6 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-                    </div>
-                ) : activities.length === 0 ? (
-                    <div className="p-6 text-center text-muted-foreground">
-                        <FileSpreadsheet className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-xs">No activity recorded today</p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-border/20">
-                        {activities.map((item) => {
-                            const config = typeConfig[item.type] || typeConfig.attendance;
-                            const Icon = config.icon;
-                            let timeAgo = '';
-                            try {
-                                timeAgo = formatDistanceToNow(new Date(item.timestamp), { addSuffix: true });
-                            } catch { timeAgo = ''; }
+            <CardContent className="p-0">
+                <ScrollArea className="max-h-[350px] scrollbar-thin scrollbar-thumb-border/50 hover:scrollbar-thumb-border scrollbar-track-transparent">
+                    {loading ? (
+                        <div className="p-10 flex flex-col items-center justify-center gap-4">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                            <p className="text-xs font-semibold text-muted-foreground animate-pulse">Loading activities...</p>
+                        </div>
+                    ) : activities.length === 0 ? (
+                        <div className="p-10 flex flex-col items-center justify-center text-center text-muted-foreground/60 bg-muted/10 mx-5 my-5 rounded-2xl border border-dashed border-border/40">
+                            <FileSpreadsheet className="h-10 w-10 mb-3 opacity-20" />
+                            <p className="text-sm font-semibold tracking-tight">No activity recorded today</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-border/20 px-2">
+                            {activities.map((item, index) => {
+                                const config = typeConfig[item.type] || typeConfig.attendance;
+                                const Icon = config.icon;
+                                let timeAgo = '';
+                                try {
+                                    timeAgo = formatDistanceToNow(new Date(item.timestamp), { addSuffix: true });
+                                } catch { timeAgo = ''; }
 
-                            return (
-                                <div key={item.id} className="flex items-start gap-3 px-4 py-3 hover:bg-accent/30 transition-colors">
-                                    <div className={`p-1.5 rounded-lg ${config.bg} shrink-0 mt-0.5`}>
-                                        <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+                                return (
+                                    <div key={item.id} className={cn(
+                                        "flex gap-4 p-4 mx-2 my-1.5 rounded-xl transition-all duration-300 group hover:bg-card/80 hover:shadow-sm border border-transparent hover:border-border/40 cursor-default",
+                                        index === 0 && "bg-primary/5 border-primary/10" // highlight the most recent item slightly
+                                    )}>
+                                        <div className={cn("p-2 rounded-xl shrink-0 border h-fit shadow-sm", config.bg)}>
+                                            <Icon className={cn("h-4 w-4", config.color)} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="flex-1 min-w-0 pt-0.5">
+                                            <p className="text-[13px] font-bold text-foreground truncate group-hover:text-primary transition-colors">{item.title}</p>
+                                            <p className="text-[11px] font-medium text-muted-foreground/80 mt-1 line-clamp-1">{item.description}</p>
+                                            <span className="text-[10px] font-bold text-muted-foreground/60 flex items-center gap-1.5 mt-2 uppercase tracking-widest">
+                                                <Clock className="h-3 w-3" />
+                                                {timeAgo}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-foreground truncate">{item.title}</p>
-                                        <p className="text-[10px] text-muted-foreground mt-0.5">{item.description}</p>
-                                    </div>
-                                    <span className="text-[10px] text-muted-foreground/60 shrink-0 flex items-center gap-1 mt-0.5">
-                                        <Clock className="h-2.5 w-2.5" />
-                                        {timeAgo}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </ScrollArea>
+            </CardContent>
+        </Card>
     );
 }

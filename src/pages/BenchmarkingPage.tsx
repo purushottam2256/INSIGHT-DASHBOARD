@@ -113,9 +113,11 @@ export default function BenchmarkingPage() {
       </div>
 
       {/* Comparison Table */}
-      <div className="rounded-xl border border-border overflow-hidden bg-card">
-        <div className="px-4 py-3 border-b border-border bg-muted/30 font-semibold flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-primary" />
+      <div className="rounded-[1.5rem] border border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] overflow-hidden">
+        <div className="px-5 py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20 font-black tracking-tight text-[15px] flex items-center gap-2 text-foreground">
+          <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+            <BarChart3 className="h-4 w-4" />
+          </div>
           Cross-Department Comparison
         </div>
         <div className="overflow-x-auto">

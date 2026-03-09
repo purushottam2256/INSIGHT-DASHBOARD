@@ -56,7 +56,12 @@ CREATE TYPE notification_type AS ENUM (
     'management_update',
     'exam_duty_reminder',
     'swap_request',
-    'swap_accepted'
+    'swap_accepted',
+    'broadcast',
+    'system',
+    'holiday',
+    'exam',
+    'event'
 );
 
 -- Notification priority
@@ -121,6 +126,16 @@ CREATE TABLE public.admins (
     dept TEXT, -- NULL for super admins
     password_hash TEXT, -- Managed by Supabase Auth, but we track here
     is_active BOOLEAN DEFAULT TRUE,
+    avatar_url TEXT,
+    phone TEXT,
+    designation TEXT,
+    joining_date DATE,
+    gender TEXT,
+    qualification TEXT,
+    experience_years INTEGER,
+    address TEXT,
+    date_of_birth DATE,
+    blood_group TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT valid_role CHECK (role IN ('hod', 'management', 'developer', 'principal'))
@@ -531,6 +546,7 @@ CREATE INDEX idx_notifications_user ON public.notifications(user_id);
 CREATE INDEX idx_notifications_read ON public.notifications(is_read);
 CREATE INDEX idx_notifications_type ON public.notifications(type);
 CREATE INDEX idx_notifications_created ON public.notifications(created_at);
+CREATE INDEX idx_notifications_data_gin ON public.notifications USING gin(data);
 
 -- ----------------------------------------------------------------------------
 -- 15. APP CONFIG
@@ -569,6 +585,31 @@ CREATE TABLE public.class_incharges (
 -- Indexes
 CREATE INDEX idx_class_incharges_faculty ON public.class_incharges(faculty_id);
 CREATE INDEX idx_class_incharges_class ON public.class_incharges(dept, year, section);
+
+-- ----------------------------------------------------------------------------
+-- 17. ISSUES / SUPPORT
+-- ----------------------------------------------------------------------------
+CREATE TABLE public.issues (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    type TEXT CHECK (type IN ('bug', 'feature', 'support', 'other')) DEFAULT 'bug',
+    status TEXT CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')) DEFAULT 'open',
+    priority TEXT CHECK (priority IN ('low', 'medium', 'high', 'critical')) DEFAULT 'medium',
+    resolution_note TEXT,
+    resolved_by UUID REFERENCES public.admins(id),
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_issues_user ON public.issues(user_id);
+CREATE INDEX idx_issues_status ON public.issues(status);
+CREATE INDEX idx_issues_created ON public.issues(created_at);
+
+ALTER TABLE public.issues ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- VIEWS (For Performance - Free Tier Compatible)
@@ -910,16 +951,151 @@ ALTER TABLE public.class_incharges ENABLE ROW LEVEL SECURITY;
 -- SECURITY DEFINER FUNCTIONS (Bypass RLS to avoid infinite recursion)
 -- ============================================================================
 
+-- Function to securely bypass RLS and create a profile on behalf of a new user
+-- Function to securely bypass RLS and create BOTH an auth.user and a profile instantly
+CREATE OR REPLACE FUNCTION public.admin_create_profile(
+    p_email TEXT,
+    p_password TEXT,
+    p_full_name TEXT,
+    p_role user_role,
+    p_dept TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_user_id UUID;
+    encrypted_pw TEXT;
+BEGIN
+    -- Only allow elevated roles or HODs to execute this
+    IF NOT public.is_elevated_role() AND NOT public.is_hod() THEN
+        RAISE EXCEPTION 'Unauthorized: only admins and HODs can provision profiles';
+    END IF;
+
+    -- If HOD, carefully ensure they aren't generating foreign department accounts
+    IF public.is_hod() AND p_dept != public.auth_user_dept() THEN
+        RAISE EXCEPTION 'Unauthorized: HODs can only provision faculty for their own department';
+    END IF;
+
+    -- Generate password hash
+    encrypted_pw := crypt(p_password, gen_salt('bf'));
+
+    -- Check if user already exists in auth.users (Orphan account from previous failed attempts)
+    SELECT id INTO new_user_id FROM auth.users WHERE email = p_email;
+
+    IF new_user_id IS NULL THEN
+        -- Generate ID
+        new_user_id := gen_random_uuid();
+
+        -- 1. Insert directly into auth.users to bypass email-confirmation delays
+        INSERT INTO auth.users (
+            instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token
+        )
+        VALUES (
+            '00000000-0000-0000-0000-000000000000', new_user_id, 'authenticated', 'authenticated', p_email, encrypted_pw, NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', p_full_name), NOW(), NOW(), '', '', '', ''
+        );
+        
+        -- 2. Insert into auth.identities
+        INSERT INTO auth.identities (
+            id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at, provider_id
+        )
+        VALUES (
+            gen_random_uuid(), new_user_id, format('{"sub":"%s","email":"%s"}', new_user_id::text, p_email)::jsonb, 'email', NOW(), NOW(), NOW(), new_user_id::text
+        );
+    ELSE
+        -- Update existing orphan user so the newly generated temporary password works
+        UPDATE auth.users 
+        SET encrypted_password = encrypted_pw,
+            raw_user_meta_data = jsonb_build_object('full_name', p_full_name),
+            email_confirmed_at = COALESCE(email_confirmed_at, NOW())
+        WHERE id = new_user_id;
+    END IF;
+
+    -- 3. Upsert into public.profiles
+    -- This guarantees that if the auth row was dangling, we finally create their profile
+    INSERT INTO public.profiles (id, email, full_name, role, dept)
+    VALUES (new_user_id, p_email, p_full_name, p_role, p_dept)
+    ON CONFLICT (id) DO UPDATE 
+    SET full_name = EXCLUDED.full_name,
+        role = EXCLUDED.role,
+        dept = EXCLUDED.dept;
+
+    RETURN jsonb_build_object('id', new_user_id, 'email', p_email);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_create_profile(TEXT, TEXT, TEXT, user_role, TEXT) TO authenticated;
+
+-- Function to securely reset a faculty member's password
+CREATE OR REPLACE FUNCTION public.admin_update_faculty_password(
+    p_user_id UUID,
+    p_new_password TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    target_role TEXT;
+    target_dept TEXT;
+    encrypted_pw TEXT;
+BEGIN
+    -- Only allow elevated roles or HODs to execute this
+    IF NOT public.is_elevated_role() AND NOT public.is_hod() THEN
+        RAISE EXCEPTION 'Unauthorized: only admins and HODs can reset passwords';
+    END IF;
+
+    -- Fetch target user's role and dept from profiles
+    SELECT role::text, dept INTO target_role, target_dept
+    FROM public.profiles
+    WHERE id = p_user_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Target user profile not found';
+    END IF;
+
+    -- If HOD, carefully ensure they aren't modifying foreign department accounts
+    IF public.is_hod() THEN
+        IF target_dept != public.auth_user_dept() THEN
+            RAISE EXCEPTION 'Unauthorized: HODs can only modify faculty in their own department';
+        END IF;
+        IF target_role IN ('hod', 'principal', 'admin', 'management', 'developer') THEN
+            RAISE EXCEPTION 'Unauthorized: HODs cannot reset passwords for elevated roles';
+        END IF;
+    END IF;
+
+    -- Generate password hash
+    encrypted_pw := crypt(p_new_password, gen_salt('bf'));
+
+    -- Update the password in auth.users
+    UPDATE auth.users 
+    SET encrypted_password = encrypted_pw,
+        updated_at = NOW()
+    WHERE id = p_user_id;
+
+    RETURN TRUE;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_update_faculty_password(UUID, TEXT) TO authenticated;
+
+
+
 -- Function to get user's role (bypasses RLS)
 CREATE OR REPLACE FUNCTION public.auth_user_role()
 RETURNS TEXT AS $$
-  SELECT role::TEXT FROM public.profiles WHERE id = auth.uid()
+  SELECT COALESCE(
+    (SELECT role FROM public.admins WHERE id = auth.uid()),
+    (SELECT role::TEXT FROM public.profiles WHERE id = auth.uid())
+  );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Function to get user's department (bypasses RLS)
 CREATE OR REPLACE FUNCTION public.auth_user_dept()
 RETURNS TEXT AS $$
-  SELECT dept FROM public.profiles WHERE id = auth.uid()
+  SELECT COALESCE(
+    (SELECT dept FROM public.admins WHERE id = auth.uid()),
+    (SELECT dept FROM public.profiles WHERE id = auth.uid())
+  );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Function to get current user's email (bypasses auth.users access issues)
@@ -940,7 +1116,7 @@ RETURNS BOOLEAN AS $$
     AND role::TEXT IN ('principal', 'management', 'developer')
   )
   OR EXISTS (
-    SELECT 1 FROM public.admins WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    SELECT 1 FROM public.admins WHERE id = auth.uid()
   )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
@@ -950,6 +1126,9 @@ RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role::TEXT = 'hod'
   )
+  OR EXISTS (
+    SELECT 1 FROM public.admins WHERE id = auth.uid() AND role = 'hod'
+  )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 -- Is the current user HOD of a specific dept?
@@ -958,6 +1137,10 @@ RETURNS BOOLEAN AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role::TEXT = 'hod' AND dept = target_dept
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.admins
+    WHERE id = auth.uid() AND role = 'hod' AND dept = target_dept
   )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
@@ -1024,6 +1207,10 @@ CREATE POLICY "profiles_insert_elevated" ON public.profiles
 CREATE POLICY "profiles_delete_elevated" ON public.profiles
   FOR DELETE USING (public.is_elevated_role());
 
+-- Users can insert their own profile (used during initial welcome setup)
+CREATE POLICY "profiles_insert_own" ON public.profiles
+  FOR INSERT WITH CHECK (id = auth.uid());
+
 -- ============================================================================
 -- DEPARTMENTS Policies
 -- ============================================================================
@@ -1049,55 +1236,6 @@ CREATE INDEX idx_subjects_code ON public.subjects(code);
 CREATE INDEX idx_subjects_dept ON public.subjects(dept);
 CREATE INDEX idx_subjects_semester ON public.subjects(semester);
 
--- ----------------------------------------------------------------------------
--- 6. FACULTY INVITATIONS
--- ----------------------------------------------------------------------------
-CREATE TABLE public.faculty_invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email TEXT NOT NULL UNIQUE,
-    full_name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'faculty',
-    dept TEXT,
-    year INTEGER,
-    section TEXT,
-    invited_by UUID REFERENCES public.profiles(id),
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'revoked')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Indexes
-CREATE INDEX idx_faculty_invitations_email ON public.faculty_invitations(email);
-CREATE INDEX idx_faculty_invitations_status ON public.faculty_invitations(status);
-
--- ============================================================================
--- FACULTY INVITATIONS Policies
--- ============================================================================
-
-ALTER TABLE public.faculty_invitations ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "invitations_read_all" ON public.faculty_invitations
-    FOR SELECT USING (
-        public.is_elevated_role() OR public.is_hod()
-    );
-
-CREATE POLICY "invitations_insert_rbac" ON public.faculty_invitations
-    FOR INSERT WITH CHECK (
-        public.is_elevated_role() OR 
-        (public.is_hod() AND dept = (SELECT dept FROM public.profiles WHERE id = auth.uid()))
-    );
-
-CREATE POLICY "invitations_update_rbac" ON public.faculty_invitations
-    FOR UPDATE USING (
-        public.is_elevated_role() OR 
-        (public.is_hod() AND dept = (SELECT dept FROM public.profiles WHERE id = auth.uid()))
-    );
-
-CREATE POLICY "invitations_delete_rbac" ON public.faculty_invitations
-    FOR DELETE USING (
-        public.is_elevated_role() OR 
-        (public.is_hod() AND dept = (SELECT dept FROM public.profiles WHERE id = auth.uid()))
-    );
 
 -- ============================================================================
 -- ACADEMIC_CALENDAR Policies
@@ -1344,6 +1482,21 @@ CREATE POLICY "notifications_own_update" ON public.notifications
 -- Users can insert notifications (for sending to others)
 CREATE POLICY "notifications_insert" ON public.notifications 
     FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- ============================================================================
+-- ISSUES Policies
+-- ============================================================================
+-- Users can see their own issues
+CREATE POLICY "issues_own_read" ON public.issues
+    FOR SELECT USING (user_id = auth.uid());
+
+-- Users can create issues
+CREATE POLICY "issues_insert" ON public.issues
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- Admins/Developers can manage all issues
+CREATE POLICY "issues_admin_manage" ON public.issues
+    FOR ALL USING (public.is_elevated_role());
 
 -- ============================================================================
 -- SUBSTITUTIONS Policies
@@ -2297,6 +2450,215 @@ JOIN public.students s ON s.id = al.student_id
 GROUP BY al.student_id, s.full_name, s.roll_no, s.dept, s.year, s.section;
 
 -- ============================================================================
--- END OF SCHEMA
+-- DB FUNCTIONS: SYSTEM ADMIN MANAGEMENT
 -- ============================================================================
 
+CREATE OR REPLACE FUNCTION public.admin_create_system_admin(
+    p_email TEXT,
+    p_password TEXT,
+    p_full_name TEXT,
+    p_role TEXT,
+    p_username TEXT,
+    p_dept TEXT DEFAULT NULL,
+    p_avatar_url TEXT DEFAULT NULL,
+    p_phone TEXT DEFAULT NULL,
+    p_designation TEXT DEFAULT NULL,
+    p_joining_date DATE DEFAULT NULL,
+    p_gender TEXT DEFAULT NULL,
+    p_qualification TEXT DEFAULT NULL,
+    p_experience_years INTEGER DEFAULT NULL,
+    p_address TEXT DEFAULT NULL,
+    p_date_of_birth DATE DEFAULT NULL,
+    p_blood_group TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_user_id UUID;
+BEGIN
+    IF public.auth_user_role() NOT IN ('developer', 'management', 'principal') THEN
+        RAISE EXCEPTION 'Unauthorized to create system admins';
+    END IF;
+
+    IF p_role = 'developer' AND public.auth_user_role() != 'developer' THEN
+        RAISE EXCEPTION 'Only developers can create other developers';
+    END IF;
+
+    -- 1. Check if user already exists in auth.users
+    SELECT id INTO v_user_id FROM auth.users WHERE email = LOWER(p_email);
+
+    IF v_user_id IS NOT NULL THEN
+        -- User exists, update them
+        UPDATE auth.users SET 
+            encrypted_password = crypt(p_password, extensions.gen_salt('bf')),
+            raw_user_meta_data = jsonb_build_object('full_name', p_full_name, 'avatar_url', p_avatar_url),
+            updated_at = NOW()
+        WHERE id = v_user_id;
+    ELSE
+        -- User does not exist, insert them
+        INSERT INTO auth.users (
+            instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+            confirmation_token, recovery_token, email_change_token_new, email_change
+        ) VALUES (
+            '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', LOWER(p_email), crypt(p_password, extensions.gen_salt('bf')), NOW(), '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', p_full_name, 'avatar_url', p_avatar_url), NOW(), NOW(),
+            '', '', '', ''
+        ) RETURNING id INTO v_user_id;
+    END IF;
+
+    -- 2. Check if user exists in public.admins
+    IF EXISTS (SELECT 1 FROM public.admins WHERE email = LOWER(p_email)) THEN
+        -- Update existing admin record
+        UPDATE public.admins SET 
+            role = p_role,
+            full_name = p_full_name,
+            username = p_username,
+            dept = p_dept,
+            avatar_url = p_avatar_url,
+            phone = p_phone,
+            designation = p_designation,
+            joining_date = p_joining_date,
+            gender = p_gender,
+            qualification = p_qualification,
+            experience_years = p_experience_years,
+            address = p_address,
+            date_of_birth = p_date_of_birth,
+            blood_group = p_blood_group,
+            is_active = true,
+            updated_at = NOW()
+        WHERE email = LOWER(p_email);
+    ELSE
+        -- Insert new admin record
+        INSERT INTO public.admins (
+            id, username, email, full_name, role, dept, avatar_url, phone, designation, joining_date, gender, qualification, experience_years, address, date_of_birth, blood_group
+        ) VALUES (
+            v_user_id, p_username, LOWER(p_email), p_full_name, p_role, p_dept, p_avatar_url, p_phone, p_designation, p_joining_date, p_gender, p_qualification, p_experience_years, p_address, p_date_of_birth, p_blood_group
+        );
+    END IF;
+
+    RETURN jsonb_build_object('id', v_user_id, 'status', 'success');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_update_system_admin(
+    p_user_id UUID,
+    p_full_name TEXT,
+    p_role TEXT,
+    p_username TEXT,
+    p_dept TEXT DEFAULT NULL,
+    p_password TEXT DEFAULT NULL,
+    p_avatar_url TEXT DEFAULT NULL,
+    p_phone TEXT DEFAULT NULL,
+    p_designation TEXT DEFAULT NULL,
+    p_joining_date DATE DEFAULT NULL,
+    p_gender TEXT DEFAULT NULL,
+    p_qualification TEXT DEFAULT NULL,
+    p_experience_years INTEGER DEFAULT NULL,
+    p_address TEXT DEFAULT NULL,
+    p_date_of_birth DATE DEFAULT NULL,
+    p_blood_group TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+    v_target_role TEXT;
+BEGIN
+    IF public.auth_user_role() NOT IN ('developer', 'management', 'principal') THEN
+        RAISE EXCEPTION 'Unauthorized to update system admins';
+    END IF;
+
+    SELECT role INTO v_target_role FROM public.admins WHERE id = p_user_id;
+    
+    IF v_target_role = 'developer' AND public.auth_user_role() != 'developer' THEN
+        RAISE EXCEPTION 'Only developers can modify other developers';
+    END IF;
+    IF p_role = 'developer' AND public.auth_user_role() != 'developer' THEN
+        RAISE EXCEPTION 'Only developers can grant the developer role';
+    END IF;
+
+    UPDATE public.admins
+    SET full_name = p_full_name, role = p_role, username = p_username, dept = p_dept,
+        avatar_url = p_avatar_url, phone = p_phone, designation = p_designation,
+        joining_date = p_joining_date, gender = p_gender, qualification = p_qualification,
+        experience_years = p_experience_years, address = p_address, date_of_birth = p_date_of_birth,
+        blood_group = p_blood_group, updated_at = NOW()
+    WHERE id = p_user_id;
+
+    IF p_password IS NOT NULL AND p_password != '' THEN
+        UPDATE auth.users
+        SET encrypted_password = crypt(p_password, extensions.gen_salt('bf')), updated_at = NOW()
+        WHERE id = p_user_id;
+    END IF;
+
+    UPDATE auth.users
+    SET raw_user_meta_data = jsonb_set(
+        jsonb_set(COALESCE(raw_user_meta_data, '{}'::jsonb), '{full_name}', to_jsonb(p_full_name)),
+        '{avatar_url}', to_jsonb(p_avatar_url)
+    ), updated_at = NOW()
+    WHERE id = p_user_id;
+
+    RETURN jsonb_build_object('id', p_user_id, 'status', 'success');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_delete_system_admin(
+    p_user_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+    v_target_role TEXT;
+BEGIN
+    IF public.auth_user_role() NOT IN ('developer', 'management', 'principal') THEN
+        RAISE EXCEPTION 'Unauthorized to delete system admins';
+    END IF;
+
+    SELECT role INTO v_target_role FROM public.admins WHERE id = p_user_id;
+    IF v_target_role = 'developer' AND public.auth_user_role() != 'developer' THEN
+        RAISE EXCEPTION 'Only developers can delete other developers';
+    END IF;
+
+    DELETE FROM public.admins WHERE id = p_user_id;
+    DELETE FROM auth.users WHERE id = p_user_id;
+
+    RETURN jsonb_build_object('id', p_user_id, 'status', 'deleted');
+END;
+$$;
+
+-- ============================================================================
+-- STORAGE CONFIGURATION
+-- ============================================================================
+
+-- Create avatars bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Avatars Bucket Policies
+CREATE POLICY "Avatar images are publicly accessible."
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'avatars' );
+
+CREATE POLICY "Anyone can upload an avatar."
+  ON storage.objects FOR INSERT
+  WITH CHECK ( bucket_id = 'avatars' );
+
+CREATE POLICY "Anyone can update their own avatar."
+  ON storage.objects FOR UPDATE
+  USING ( bucket_id = 'avatars' );
+
+CREATE POLICY "Anyone can delete their own avatar."
+  ON storage.objects FOR DELETE
+  USING ( bucket_id = 'avatars' );
+
+-- ============================================================================
+-- END OF SCHEMA
+-- ============================================================================

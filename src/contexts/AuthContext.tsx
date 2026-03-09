@@ -69,43 +69,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchRole = async (userId: string) => {
     try {
       // 1. Check Admins Table First (Priority)
-      const { data: adminData, error: adminError } = await supabase
+      const { data: adminDataArr, error: adminError } = await supabase
         .from("admins")
-        .select("role")
-        .eq("id", userId)
-        .single()
+        .select("role, dept, full_name")
+        .eq("id", userId);
+      
+      const adminData = adminDataArr && adminDataArr.length > 0 ? adminDataArr[0] : null;
 
       if (!adminError && adminData) {
         setRole(adminData.role as UserRole)
         
-        // Fetch supplemental profile details (like dept) for elevated roles
-        const { data: profileSupplemental } = await supabase
-          .from("profiles")
-          .select("dept, full_name")
-          .eq("id", userId)
-          .single()
-
         setProfile({ 
           id: userId, 
           role: adminData.role,
-          dept: profileSupplemental?.dept || null,
-          full_name: profileSupplemental?.full_name || null 
+          dept: adminData.dept || null,
+          full_name: adminData.full_name || null 
         })
         return
       }
 
       // 2. Fallback to Profiles (Faculty/Staff)
-      const { data: profileData, error: profileError } = await supabase
+      const { data: profileDataArr, error: profileError } = await supabase
         .from("profiles")
         .select("role, dept, full_name")
-        .eq("id", userId)
-        .single()
+        .eq("id", userId);
+
+      const profileData = profileDataArr && profileDataArr.length > 0 ? profileDataArr[0] : null;
 
       if (profileError) {
         console.error("Error fetching user role:", profileError)
-      } else {
+      } else if (profileData) {
         setRole(profileData.role as UserRole)
         setProfile({ id: userId, ...profileData })
+      } else {
+        setRole(null);
+        setProfile(null);
       }
     } catch (err) {
       console.error("Unexpected error fetching role:", err)

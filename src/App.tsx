@@ -12,11 +12,10 @@ import { ComparePage } from "@/pages/ComparePage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { HelpPage } from "@/pages/HelpPage"
 import { Unauthorized } from "@/pages/Unauthorized"
-import WelcomeSetup from "@/pages/WelcomeSetup"
 import { ReportsPage } from "@/pages/ReportsPage"
 import { CalendarPage } from "@/pages/CalendarPage"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
-import { Loader2 } from "lucide-react"
+import { FullPageLoader } from "@/components/ui/LoadingState"
 
 // Lazy-loaded pages
 const CompliancePage = lazy(() => import("@/pages/CompliancePage"))
@@ -26,11 +25,7 @@ const SemesterUpgrader = lazy(() => import("@/pages/SemesterUpgrader"))
 const AdminBroadcastPage = lazy(() => import("@/pages/AdminBroadcastPage"))
 const OverviewPage = lazy(() => import("@/pages/OverviewPage"))
 
-const PageLoader = () => (
-  <div className="flex h-64 items-center justify-center">
-    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-  </div>
-)
+const PageLoader = () => <FullPageLoader text="Loading Application" />
 
 function App() {
   return (
@@ -40,12 +35,6 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
           
-          <Route path="/welcome" element={
-              <ProtectedRoute>
-                  <WelcomeSetup />
-              </ProtectedRoute>
-          } />
-
           <Route
             path="/*"
             element={

@@ -70,7 +70,7 @@ export default function AdminBroadcastPage() {
     localStorage.setItem('insight_broadcasts', JSON.stringify(items));
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!title.trim() || !message.trim()) {
       toast.error('Title and message are required');
       return;
@@ -79,44 +79,127 @@ export default function AdminBroadcastPage() {
       toast.error('Please select a faculty member');
       return;
     }
+    
     setSending(true);
+    let targetProfiles: any[] = [];
 
-    const selectedFaculty = audience === 'specific_faculty' ? facultyList.find(f => f.id === selectedFacultyId) : null;
-    const audienceLabel = audience === 'specific_faculty' && selectedFaculty ? `Faculty: ${selectedFaculty.full_name}` : audience;
+    try {
+        // Query targets based on audience
+        let query = supabase.from('profiles').select('id, push_token, full_name');
+        
+        if (audience === 'specific_faculty') {
+            query = query.eq('id', selectedFacultyId);
+        } else if (audience === 'hods') {
+            query = query.eq('role', 'hod');
+        } else if (audience === 'faculty') {
+            query = query.in('role', ['faculty', 'class_incharge', 'lab_incharge']);
+        } else if (audience !== 'all') { // It's a specific department
+            query = query.eq('dept', audience).in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']);
+        } else {
+            // all
+            query = query.in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']);
+        }
 
-    const newBroadcast: Broadcast = {
-      id: crypto.randomUUID(),
-      title: title.trim(),
-      message: message.trim(),
-      priority,
-      audience: audienceLabel,
-      sentBy: permissions.userRole || 'admin',
-      sentByRole: permissions.userRole || 'admin',
-      timestamp: new Date().toISOString(),
-      read: false,
-    };
+        const { data: targets, error: targetError } = await query;
+        if (targetError) throw targetError;
+        targetProfiles = targets || [];
 
-    const updated = [newBroadcast, ...broadcasts];
-    saveBroadcasts(updated);
+        if (targetProfiles.length === 0) {
+            toast.error("No valid faculty found for this audience.");
+            setSending(false);
+            return;
+        }
 
-    logAction('Broadcast Sent', 'broadcast', `Sent "${title}" to ${audience}`, {
-      priority,
-      audience,
-      title,
-    });
+        const selectedFaculty = audience === 'specific_faculty' ? facultyList.find(f => f.id === selectedFacultyId) : null;
+        const audienceLabel = audience === 'specific_faculty' && selectedFaculty ? `Faculty: ${selectedFaculty.full_name}` : audience;
 
-    toast.success('Broadcast sent successfully!');
-    setTitle('');
-    setMessage('');
-    setPriority('normal');
-    setAudience('all');
-    setShowCompose(false);
-    setSending(false);
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUserId = authData.user?.id || null;
+
+        // 1. Save to `notifications` table
+        const notificationsData = targetProfiles.map(p => ({
+            user_id: p.id,
+            type: 'broadcast', // Assuming 'broadcast' is a valid ENUM type. Adjust if DB differs.
+            priority: priority,
+            title: title.trim(),
+            body: message.trim(),
+            data: { 
+                isBroadcast: true, 
+                senderId: currentUserId, 
+                senderRole: permissions.userRole,
+                audience: audienceLabel
+            }
+        }));
+
+        const { error: insertError } = await supabase.from('notifications').insert(notificationsData);
+        if (insertError) {
+             console.error("DB Insert Error (Notifications):", insertError);
+             // If Enum fails, fallback to standard 'system' type
+             if (insertError.message.includes('invalid input value for enum')) {
+                 const fallbackData = notificationsData.map(n => ({...n, type: 'system'}));
+                 await supabase.from('notifications').insert(fallbackData).throwOnError();
+             } else {
+                 throw insertError;
+             }
+        }
+
+        // 2. Local History Saving for Admin UI Consistency
+        const newBroadcast: Broadcast = {
+          id: crypto.randomUUID(),
+          title: title.trim(),
+          message: message.trim(),
+          priority,
+          audience: audienceLabel,
+          sentBy: permissions.userRole || 'admin',
+          sentByRole: permissions.userRole || 'admin',
+          timestamp: new Date().toISOString(),
+          read: false,
+        };
+        const updated = [newBroadcast, ...broadcasts];
+        saveBroadcasts(updated);
+
+        // 3. Send Push Notifications via Edge Function!
+        let sentCount = 0;
+        for (const target of targetProfiles) {
+            if (target.push_token) {
+                 // Non-blocking fire and forget for max speed, or await inside try catch
+                 supabase.functions.invoke('send-push', {
+                     body: {
+                         token: target.push_token,
+                         title: `Broadcast: ${title.trim()}`,
+                         body: message.trim(),
+                         data: { categoryId: 'BROADCAST', priority }
+                     }
+                 }).catch(e => console.error("Push delivery failed for user", target.id, e));
+                 sentCount++;
+            }
+        }
+
+        logAction('Broadcast Sent', 'broadcast', `Sent "${title}" to ${audience}`, {
+          priority,
+          audience,
+          title,
+          pushSentCount: sentCount
+        });
+
+        toast.success(`Broadcast sent! Push notifications triggered for ${sentCount}/${targetProfiles.length} users.`);
+        setTitle('');
+        setMessage('');
+        setPriority('normal');
+        setAudience('all');
+        setShowCompose(false);
+
+    } catch (e: any) {
+        toast.error("Failed to send broadcast: " + e.message);
+        console.error("Broadcast Logic Error:", e);
+    } finally {
+        setSending(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     saveBroadcasts(broadcasts.filter((b) => b.id !== id));
-    toast.success('Broadcast deleted');
+    toast.success('Broadcast removed from local memory');
   };
 
   const applyTemplate = (t: typeof TEMPLATES[0]) => {

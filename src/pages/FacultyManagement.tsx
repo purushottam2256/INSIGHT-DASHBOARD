@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Trash2, UserCog, Search, Shield, Edit2, X, Check } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Loader2, Plus, Trash2, UserCog, Search, Edit2, Camera, KeyRound } from "lucide-react"
 import { DEPARTMENTS } from "@/lib/constants"
 import { toast } from "sonner"
 
@@ -16,23 +17,17 @@ interface FacultyProfile {
   full_name: string
   role: string
   dept: string
+  mobile?: string
+  faculty_id?: string
+  avatar_url?: string
   is_invite?: boolean
   status?: string
 }
 
-// HOD can assign these roles (NOT hod, principal, admin, management, developer)
-const HOD_ALLOWED_ROLES = [
+const availableRoles = [
     { value: 'faculty', label: 'Faculty' },
     { value: 'class_incharge', label: 'Class Incharge' },
     { value: 'lab_incharge', label: 'Lab Incharge' },
-]
-
-// Admin/Principal/Management can assign all roles
-const ALL_ROLES = [
-    ...HOD_ALLOWED_ROLES,
-    { value: 'hod', label: 'HOD' },
-    { value: 'principal', label: 'Principal' },
-    { value: 'management', label: 'Management' },
 ]
 
 export function FacultyManagement() {
@@ -40,8 +35,12 @@ export function FacultyManagement() {
   const [loading, setLoading] = useState(false)
   const [facultyList, setFacultyList] = useState<FacultyProfile[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editData, setEditData] = useState({ full_name: "", role: "", dept: "", is_invite: false })
+  const [editingFaculty, setEditingFaculty] = useState<FacultyProfile | null>(null)
+  const [editData, setEditData] = useState({ 
+    full_name: "", role: "", dept: "", email: "", mobile: "", faculty_id: "", avatar_url: "", new_password: ""
+  })
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     email: "",
     fullName: "",
@@ -56,7 +55,6 @@ export function FacultyManagement() {
   const SECTIONS = ["A", "B", "C", "D"]
 
   const isHod = profile?.role === 'hod'
-  const availableRoles = isHod ? HOD_ALLOWED_ROLES : ALL_ROLES
 
   useEffect(() => {
     if (isHod && profile?.dept) {
@@ -71,7 +69,7 @@ export function FacultyManagement() {
   const fetchFaculty = async () => {
     setLoading(true)
 
-    // Fetch active profiles
+    // Fetch active profiles only (we dropped invitations)
     let pQuery = supabase
       .from('profiles')
       .select('*')
@@ -81,24 +79,10 @@ export function FacultyManagement() {
 
     const { data: pData, error: pError } = await pQuery
 
-    // Fetch pending invitations
-    let iQuery = supabase
-      .from('faculty_invitations')
-      .select('*')
-      .eq('status', 'pending')
-
-    if (isHod && profile?.dept) iQuery = iQuery.eq('dept', profile.dept)
-
-    const { data: iData, error: iError } = await iQuery
-
-    if (pError || iError) {
+    if (pError) {
       toast.error("Failed to load faculty list.")
     } else {
-        const combined = [
-            ...(pData || []).map(p => ({ ...p, is_invite: false })),
-            ...(iData || []).map(i => ({ ...i, is_invite: true }))
-        ]
-        
+        const combined = (pData || []).map(p => ({ ...p, is_invite: false }));
         combined.sort((a, b) => a.full_name.localeCompare(b.full_name))
         setFacultyList(combined as FacultyProfile[])
     }
@@ -117,7 +101,7 @@ export function FacultyManagement() {
     if (!confirm(`Remove ${fac.full_name} from the system?`)) return
     try {
       const { error } = await supabase
-        .from(fac.is_invite ? 'faculty_invitations' : 'profiles')
+        .from('profiles')
         .delete()
         .eq('id', fac.id)
       
@@ -133,93 +117,172 @@ export function FacultyManagement() {
     e.preventDefault()
     if (!formData.email.trim() || !formData.fullName.trim()) {
       toast.error("Email and Name are required")
-      return
-    }
-
-    // Prevent HOD from adding HOD role
-    if (isHod && formData.role === 'hod') {
-      toast.error("HODs cannot assign HOD role. Contact Principal or Admin.")
-      return
     }
 
     setLoading(true)
     try {
-        // 1. Insert into faculty_invitations
-        const { data: inviteData, error: inviteError } = await supabase.from('faculty_invitations').insert([{
-            email: formData.email.trim().toLowerCase(),
-            full_name: formData.fullName.trim(),
-            role: formData.role,
-            dept: formData.dept,
-            year: formData.role === 'class_incharge' ? parseInt(formData.year) : null,
-            section: formData.role === 'class_incharge' ? formData.section : null,
-            invited_by: profile?.id
-        }]).select().single()
+        // 1. Generate a temporary password
+        const tempPassword = "Welcome@" + Math.floor(1000 + Math.random() * 9000);
+        const finalDept = isHod && profile?.dept ? profile.dept : formData.dept;
 
-        if (inviteError) {
-            if (inviteError.message?.includes('duplicate') || inviteError.code === '23505') {
-                toast.error("An invitation or profile with this email already exists.")
-                return
-            }
-            throw inviteError
+        // 2. Direct Account Creation via Secure RPC
+        // Bypasses the email confirmation delay that breaks Foreign Keys by inserting securely directly into auth.users.
+        const { data: newUserData, error: provisionError } = await supabase.rpc('admin_create_profile', {
+            p_email: formData.email.trim().toLowerCase(),
+            p_password: tempPassword,
+            p_full_name: formData.fullName.trim(),
+            p_role: formData.role,
+            p_dept: finalDept
+        });
+
+        if (provisionError) {
+             console.error("Account provision failed:", provisionError);
+             if (provisionError.message.includes('unique constraint')) {
+                 toast.error("An account with this email already exists.");
+             } else {
+                 toast.error("Account creation failed: " + provisionError.message);
+             }
+             return;
         }
 
-        // 2. Send Magic Link via Supabase Auth
-        // Redirects to the Welcome page where new faculty set their password
-        const { error: authError } = await supabase.auth.signInWithOtp({
-            email: formData.email.trim().toLowerCase(),
-            options: {
-                shouldCreateUser: true,
-                emailRedirectTo: window.location.origin + '/welcome'
-            }
-        })
+        const newUserId = newUserData?.id;
+        if (!newUserId) throw new Error("Could not retrieve new user ID."); 
 
-        if (authError) {
-            // Rollback invite if email fails
-            await supabase.from('faculty_invitations').delete().eq('id', inviteData.id)
-            throw new Error("Failed to send invitation email: " + authError.message)
+        // 4. (Optional) Insert Class Incharge context if applicable
+        if (formData.role === 'class_incharge' && finalDept) {
+             try {
+                 await supabase.from('class_incharges').insert({
+                     faculty_id: newUserId,
+                     dept: finalDept,
+                     year: parseInt(formData.year),
+                     section: formData.section
+                 });
+             } catch (e) {
+                 console.warn("Class incharge mapping failed", e);
+             }
         }
 
-        toast.success(`Registration invitation sent to ${formData.fullName}`)
-        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A" })
-        fetchFaculty()
+        toast.success(
+            <div className="flex flex-col gap-1">
+                <span className="font-bold">Faculty Fully Registered!</span>
+                <span className="text-[11px] opacity-90">Please share these credentials with them:</span>
+                <span className="text-xs font-mono bg-black/20 p-1 rounded mt-1 text-white">
+                    {formData.email.trim().toLowerCase()} <br/>
+                    {tempPassword}
+                </span>
+            </div>,
+            { duration: 15000 }
+        );
+
+        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A" });
+        fetchFaculty();
 
     } catch (error: any) {
-        toast.error("Error: " + error.message)
+        toast.error("Error: " + error.message);
     } finally {
-        setLoading(false)
+        setLoading(false);
     }
   }
 
   const startEdit = (fac: FacultyProfile) => {
-    setEditingId(fac.id)
-    setEditData({ full_name: fac.full_name, role: fac.role, dept: fac.dept, is_invite: fac.is_invite || false })
+    setEditingFaculty(fac)
+    setEditData({ 
+        full_name: fac.full_name, 
+        role: fac.role, 
+        dept: fac.dept, 
+        email: fac.email,
+        mobile: fac.mobile || "", 
+        faculty_id: fac.faculty_id || "", 
+        avatar_url: fac.avatar_url || "", 
+        new_password: "" 
+    })
   }
 
   const cancelEdit = () => {
-    setEditingId(null)
-    setEditData({ full_name: "", role: "", dept: "", is_invite: false })
+    setEditingFaculty(null)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editingFaculty) return
+
+    setIsUploading(true)
+    try {
+      // 1. Delete old avatar if it exists
+      if (editData.avatar_url) {
+          try {
+              // Extract the file path from the public URL
+              // Example URL: https://[project].supabase.co/storage/v1/object/public/avatars/user_id-random.jpg
+              const urlParts = editData.avatar_url.split('/avatars/');
+              if (urlParts.length === 2) {
+                  const oldPath = urlParts[1];
+                  await supabase.storage.from('avatars').remove([oldPath]);
+              }
+          } catch (delErr) {
+              console.warn("Failed to delete old avatar, proceeding anyway", delErr);
+          }
+      }
+
+      // 2. Upload new avatar
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${editingFaculty.id}-${Math.random()}.${fileExt}`
+      const filePath = `${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true })
+      
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
+      
+      setEditData(prev => ({ ...prev, avatar_url: data.publicUrl }))
+      toast.success("Image uploaded, remember to click Save")
+    } catch (error: any) {
+      toast.error("Upload failed: " + error.message)
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleUpdateFaculty = async () => {
-    if (!editingId || !editData.full_name.trim()) {
+    if (!editingFaculty || !editData.full_name.trim()) {
       toast.error("Name is required")
       return
     }
+    setLoading(true)
     try {
-      const { error } = await supabase
-        .from(editData.is_invite ? 'faculty_invitations' : 'profiles')
+      // 1. Update Password if requested
+      if (editData.new_password) {
+          const { error: pwError } = await supabase.rpc('admin_update_faculty_password', {
+              p_user_id: editingFaculty.id,
+              p_new_password: editData.new_password
+          })
+          if (pwError) throw new Error("Failed to reset password: " + pwError.message)
+      }
+
+      // 2. Update Profile columns
+      const { error: profileError } = await supabase
+        .from('profiles')
         .update({
           full_name: editData.full_name.trim(),
           role: editData.role,
           dept: editData.dept,
+          mobile: editData.mobile || null,
+          faculty_id: editData.faculty_id || null,
+          avatar_url: editData.avatar_url || null,
         })
-        .eq('id', editingId)
-      if (error) throw error
-      toast.success("Faculty updated")
-      setEditingId(null)
+        .eq('id', editingFaculty.id)
+      
+      if (profileError) throw profileError
+      
+      toast.success("Faculty profile updated successfully")
+      setEditingFaculty(null)
       fetchFaculty()
     } catch (error: any) {
       toast.error("Update failed: " + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -245,12 +308,15 @@ export function FacultyManagement() {
 
         <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
             {/* Add Faculty Form */}
-            <Card className="border-border/40 shadow-sm h-fit">
-                <CardHeader className="py-3 border-b border-border/40 bg-muted/20">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                        <Plus className="h-3.5 w-3.5" /> Add Faculty
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden h-fit">
+                <CardHeader className="py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
+                    <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2 text-foreground">
+                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <Plus className="h-4 w-4" />
+                        </div>
+                        Add Faculty
                     </CardTitle>
-                    <CardDescription className="text-xs">Add faculty directly to the system.</CardDescription>
+                    <CardDescription className="text-[11px] font-semibold uppercase tracking-widest mt-1">Direct System Registration</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
                     <form onSubmit={handleCreateFaculty} className="space-y-3">
@@ -274,8 +340,10 @@ export function FacultyManagement() {
                             </div>
                             <div className="space-y-1">
                                 <Label className="text-xs">Department</Label>
-                                <Select disabled={isHod} value={formData.dept} onValueChange={(v) => setFormData({...formData, dept: v})}>
-                                    <SelectTrigger className={`h-8 text-sm ${isHod ? 'opacity-80 bg-muted' : ''}`}><SelectValue /></SelectTrigger>
+                                <Select disabled={isHod} value={isHod ? profile?.dept || '' : formData.dept} onValueChange={(v) => setFormData({...formData, dept: v})}>
+                                    <SelectTrigger className={`h-8 text-sm ${isHod ? 'opacity-80 bg-muted cursor-not-allowed' : ''}`}>
+                                        <SelectValue placeholder={isHod ? profile?.dept : "Select department"} />
+                                    </SelectTrigger>
                                     <SelectContent>
                                         {isHod && profile?.dept ? (
                                             <SelectItem value={profile.dept}>{profile.dept}</SelectItem>
@@ -310,21 +378,7 @@ export function FacultyManagement() {
                             </div>
                         )}
 
-                        {isHod && (
-                            <div className="flex items-start gap-1.5 p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                                <Shield className="h-3 w-3 text-amber-500 shrink-0 mt-0.5" />
-                                <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                                    As HOD, you can add faculty, class incharge, and lab incharge for your department only. To add an HOD, contact Principal.
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 flex gap-2 items-start mt-2">
-                            <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-muted-foreground leading-relaxed">
-                                <strong className="text-foreground">Automated Invitations:</strong> Adding a faculty member here will send them a formal registration email. When they securely log in via the provided link, their profile and role will be automatically claimed.
-                            </p>
-                        </div>
+                        {/* Role specific forms or info can go here if needed... */}
 
                         <Button type="submit" className="w-full h-8 text-sm" disabled={loading}>
                             {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
@@ -335,12 +389,12 @@ export function FacultyManagement() {
             </Card>
             
             {/* Faculty Directory */}
-            <Card className="border-border/40 shadow-sm">
-                <CardHeader className="py-3 border-b border-border/40">
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                <CardHeader className="py-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20">
                     <div className="flex items-center gap-3">
                         <div className="relative flex-1">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input placeholder="Search faculty..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-sm bg-muted/30" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="Search faculty directory..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-xs font-semibold rounded-xl bg-background/50 focus-visible:ring-1 focus-visible:ring-primary/50" />
                         </div>
                     </div>
                 </CardHeader>
@@ -351,76 +405,35 @@ export function FacultyManagement() {
                         ) : filteredFaculty.length > 0 ? (
                             filteredFaculty.map((fac) => (
                                 <div key={fac.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors">
-                                    {editingId === fac.id ? (
-                                        /* Inline Edit Mode */
-                                        <div className="flex-1 space-y-2">
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <Input
-                                                    value={editData.full_name}
-                                                    onChange={(e) => setEditData({ ...editData, full_name: e.target.value })}
-                                                    placeholder="Full Name"
-                                                    className="h-7 text-xs"
-                                                />
-                                                <select
-                                                    value={editData.role}
-                                                    onChange={(e) => setEditData({ ...editData, role: e.target.value })}
-                                                    className="h-7 px-2 rounded-md border border-border bg-card text-xs"
-                                                >
-                                                    {availableRoles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                                                </select>
-                                                <select
-                                                    value={editData.dept}
-                                                    onChange={(e) => setEditData({ ...editData, dept: e.target.value })}
-                                                    disabled={isHod}
-                                                    className={`h-7 px-2 rounded-md border border-border bg-card text-xs ${isHod ? 'opacity-60' : ''}`}
-                                                >
-                                                    {DEPARTMENTS.map(d => <option key={d.value} value={d.value}>{d.value}</option>)}
-                                                </select>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="h-8 w-8 rounded-full bg-primary/10 overflow-hidden flex items-center justify-center shrink-0">
+                                            {fac.avatar_url ? (
+                                                <img src={fac.avatar_url} alt={fac.full_name} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <UserCog className="h-4 w-4 text-primary" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1 flex flex-col items-start">
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-medium text-sm truncate">{fac.full_name}</p>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <Button size="sm" className="h-6 text-[10px] px-2 gap-1" onClick={handleUpdateFaculty}>
-                                                    <Check className="h-3 w-3" /> Save
-                                                </Button>
-                                                <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 gap-1" onClick={cancelEdit}>
-                                                    <X className="h-3 w-3" /> Cancel
-                                                </Button>
+                                            <div className="flex items-center gap-2 mt-0.5 transform origin-left scale-95">
+                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(fac.role)}`}>
+                                                    {fac.role?.replace('_', ' ')}
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground font-medium">{fac.dept}</span>
+                                                {fac.email && <span className="text-[10px] text-muted-foreground hidden sm:inline">• {fac.email}</span>}
                                             </div>
                                         </div>
-                                    ) : (
-                                        /* Display Mode */
-                                        <>
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                                    <UserCog className="h-4 w-4 text-primary" />
-                                                </div>
-                                                <div className="min-w-0 flex-1 flex flex-col items-start">
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="font-medium text-sm truncate">{fac.full_name}</p>
-                                                        {fac.is_invite && (
-                                                            <span className="px-1.5 py-0.5 rounded-sm bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[9px] font-bold uppercase tracking-wider">
-                                                                Pending Invite
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-0.5 transform origin-left scale-95">
-                                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(fac.role)}`}>
-                                                            {fac.role?.replace('_', ' ')}
-                                                        </span>
-                                                        <span className="text-[10px] text-muted-foreground font-medium">{fac.dept}</span>
-                                                        {fac.email && <span className="text-[10px] text-muted-foreground hidden sm:inline">• {fac.email}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-0.5 shrink-0">
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(fac)}>
-                                                    <Edit2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(fac)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
-                                        </>
-                                    )}
+                                    </div>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(fac)}>
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive/60 hover:text-destructive" onClick={() => handleDelete(fac)}>
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))
                         ) : (
@@ -432,6 +445,95 @@ export function FacultyManagement() {
                 </CardContent>
             </Card>
         </div>
+
+        {/* Edit Faculty Modal */}
+        <Dialog open={!!editingFaculty} onOpenChange={(open) => !open && cancelEdit()}>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Edit Faculty Profile</DialogTitle>
+                    <DialogDescription>Update the details, profile picture, or reset password.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+                    {/* Avatar Upload */}
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="h-20 w-20 rounded-full border border-border shadow-sm overflow-hidden bg-muted/30 flex items-center justify-center relative group">
+                            {editData.avatar_url ? (
+                                <img src={editData.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                                <UserCog className="h-8 w-8 text-muted-foreground" />
+                            )}
+                            <div 
+                                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                {isUploading ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-5 w-5 text-white" />}
+                            </div>
+                        </div>
+                        <input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileUpload} />
+                        <span className="text-[10px] text-muted-foreground">Click image to upload</span>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label className="text-xs">Full Name</Label>
+                        <Input value={editData.full_name} onChange={(e) => setEditData(p => ({ ...p, full_name: e.target.value }))} className="h-8 text-sm" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label className="text-xs">Role</Label>
+                            <Select value={editData.role} onValueChange={(v) => setEditData(p => ({ ...p, role: v }))}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {availableRoles.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label className="text-xs">Department</Label>
+                            <Select value={editData.dept} onValueChange={(v) => setEditData(p => ({ ...p, dept: v }))} disabled={isHod}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {DEPARTMENTS.map(d => <SelectItem key={d.value} value={d.value}>{d.value}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                            <Label className="text-xs">Mobile Number</Label>
+                            <Input value={editData.mobile} onChange={(e) => setEditData(p => ({ ...p, mobile: e.target.value }))} className="h-8 text-sm" placeholder="+91..." />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label className="text-xs">Faculty ID</Label>
+                            <Input value={editData.faculty_id} onChange={(e) => setEditData(p => ({ ...p, faculty_id: e.target.value }))} className="h-8 text-sm" />
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-2.5 mt-2">
+                        <div className="flex items-center gap-2">
+                            <KeyRound className="h-3.5 w-3.5 text-primary" />
+                            <Label className="text-xs font-semibold">Security</Label>
+                        </div>
+                        <Input 
+                            type="text" 
+                            placeholder="Type new password to reset..." 
+                            value={editData.new_password} 
+                            onChange={(e) => setEditData(p => ({ ...p, new_password: e.target.value }))} 
+                            className="h-8 text-sm" 
+                        />
+                        <p className="text-[9px] text-muted-foreground leading-tight">Leave blank to keep the current password. If typing a new one, tell the faculty member.</p>
+                    </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0 mt-2">
+                    <Button variant="ghost" onClick={cancelEdit} disabled={loading} className="h-8 text-sm">Cancel</Button>
+                    <Button onClick={handleUpdateFaculty} disabled={loading || isUploading} className="h-8 text-sm">
+                        {loading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin"/>}
+                        Save Profile
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
   )
 }

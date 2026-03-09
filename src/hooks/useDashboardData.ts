@@ -21,8 +21,10 @@ interface DashboardFilters {
     groupBy?: 'time' | 'class';
 }
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export const useDashboardData = (filters?: DashboardFilters) => {
-    const [profile, setProfile] = useState<DashboardProfile | null>(null);
+    const { profile, user } = useAuth();
     const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
     const [odStudents, setOdStudents] = useState<ODStudent[]>([]);
     const [todayClasses, setTodayClasses] = useState<ClassSession[]>([]);
@@ -34,22 +36,14 @@ export const useDashboardData = (filters?: DashboardFilters) => {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!user || !profile) {
+            setLoading(false);
+            return;
+        }
+
         const fetchDashboardData = async () => {
             try {
                 setLoading(true);
-                
-                // 1. Profile & Role
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) {
-                     // Demo fallback (optional, or handle redirect elsewhere)
-                } else {
-                     const { data: userProfile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-                     if (user.email) {
-                        const { data: adminRole } = await supabase.rpc('get_user_admin_role', { check_email: user.email });
-                        if (adminRole && userProfile) (userProfile as DashboardProfile).role = adminRole;
-                     }
-                     if (userProfile) setProfile(userProfile as DashboardProfile);
-                }
 
                 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -220,6 +214,9 @@ export const useDashboardData = (filters?: DashboardFilters) => {
 
         fetchDashboardData();
     }, [
+        user?.id,
+        profile?.role,
+        profile?.dept,
         filters?.date, 
         filters?.year, 
         filters?.section, 
@@ -230,7 +227,7 @@ export const useDashboardData = (filters?: DashboardFilters) => {
     ]); 
 
     return {
-        profile,
+        profile: profile as DashboardProfile | null,
         leaveRequests,
         odStudents,
         todayClasses,

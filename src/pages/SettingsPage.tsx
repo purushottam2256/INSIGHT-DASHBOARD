@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-    User, Shield, Palette, Info, 
+    User, Shield, Info, 
     Save, Camera, Mail, Building2,
-    Sun, Moon, Loader2,
-    Lock, Key, ChevronRight, CheckCircle2
+    Sun, Moon, Loader2, Bug,
+    Lock, Key, ChevronRight, CheckCircle2,
+    Sparkles, Monitor, Smartphone, Server, Paintbrush, Fingerprint
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,9 +14,9 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useTheme } from '@/components/theme-provider';
 import { motion, AnimatePresence } from 'framer-motion';
-import collegeLogo from '@/assets/collage-logo.png';
-
-
+import logo from '@/assets/logo.png';
+import { AdminManagementTab } from './AdminManagementTab';
+import { IssuesTab } from './IssuesTab';
 
 export function SettingsPage() {
     const { profile } = useDashboardData();
@@ -119,50 +120,55 @@ export function SettingsPage() {
         }
     };
 
+    const isAdminRole = ['principal', 'management', 'developer'].includes(profile?.role || '');
+
     const settingsTabs = [
         { value: 'profile', label: 'My Profile', icon: User, desc: 'Personal details and avatar' },
-        { value: 'appearance', label: 'Appearance', icon: Palette, desc: 'Theme preferences' },
-        { value: 'security', label: 'Security', icon: Shield, desc: 'Password and authentication' },
+        { value: 'appearance', label: 'Appearance', icon: Paintbrush, desc: 'Theme preferences' },
+        { value: 'security', label: 'Security', icon: Fingerprint, desc: 'Password and authentication' },
+        { value: 'issues', label: 'Issues & Support', icon: Bug, desc: 'Report bugs and requests' },
+        ...(isAdminRole ? [{ value: 'admin', label: 'Admin', icon: Shield, desc: 'System administrators' }] : []),
         { value: 'about', label: 'About', icon: Info, desc: 'App info and versions' },
     ];
 
     return (
-        <div className="flex flex-col md:flex-row gap-6 animate-fade-in relative min-h-[700px] w-full">
+        <div className="flex flex-col md:flex-row gap-8 animate-fade-in relative min-h-[750px] w-full max-w-7xl mx-auto pb-10">
             {/* Sidebar Navigation */}
-            <div className="md:w-64 shrink-0 space-y-1 bg-card rounded-3xl border border-border/50 p-3 h-fit shadow-sm">
-                <div className="px-3 py-4 border-b border-border/50 mb-3">
-                    <h3 className="text-base font-bold text-foreground">Settings</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Manage your account</p>
+            <div className="md:w-72 shrink-0 space-y-2">
+                <div className="px-5 py-6 mb-2 rounded-[2rem] bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-3">
+                        <Sparkles className="w-32 h-32 text-primary" strokeWidth={1.5} />
+                    </div>
+                    <h3 className="text-2xl font-extrabold text-foreground tracking-tight">Settings</h3>
+                    <p className="text-sm text-muted-foreground mt-1 font-medium">Control your platform presence</p>
                 </div>
-                {settingsTabs.map(tab => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.value;
-                    return (
-                        <button 
-                            key={tab.value}
-                            onClick={() => setActiveTab(tab.value)}
-                            className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 text-left group relative outline-none ${
-                                isActive 
-                                    ? 'bg-primary/10 text-primary shadow-sm' 
-                                    : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-                            }`}
-                        >
-                            {isActive && (
-                                <motion.div 
-                                    layoutId="active-tab-indicator" 
-                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-primary rounded-r-full" 
-                                />
-                            )}
-                            <div className={`p-2 rounded-xl transition-colors duration-300 ${isActive ? 'bg-primary/20 shadow-inner' : 'bg-transparent group-hover:bg-secondary'}`}>
-                                <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1">
-                                <p className={`text-sm font-semibold transition-colors duration-300 ${isActive ? 'text-primary' : ''}`}>{tab.label}</p>
-                            </div>
-                            <ChevronRight className={`h-4 w-4 transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
-                        </button>
-                    );
-                })}
+
+                <div className="bg-card/50 backdrop-blur-xl rounded-[2rem] border border-border/50 p-3 shadow-sm flex flex-col gap-1">
+                    {settingsTabs.map(tab => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.value;
+                        return (
+                            <button 
+                                key={tab.value}
+                                onClick={() => setActiveTab(tab.value)}
+                                className={`w-full flex items-center gap-3.5 p-3.5 rounded-2xl transition-all duration-300 text-left group relative outline-none ${
+                                    isActive 
+                                        ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-[1.02]' 
+                                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                                }`}
+                            >
+                                <div className={`p-2.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-white/20 shadow-inner' : 'bg-background group-hover:bg-card border border-border/40'}`}>
+                                    <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-foreground'}`} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className={`text-sm font-bold tracking-wide transition-colors duration-300 ${isActive ? 'text-white' : ''}`}>{tab.label}</p>
+                                    <p className={`text-[10px] uppercase tracking-wider font-semibold opacity-70 mt-0.5 ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>{tab.desc}</p>
+                                </div>
+                                <ChevronRight className={`h-4 w-4 transition-all duration-300 ${isActive ? 'opacity-100 translate-x-0 text-white' : 'opacity-0 -translate-x-2'}`} />
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Content Area */}
@@ -178,105 +184,114 @@ export function SettingsPage() {
                     >
                         {/* PROFILE CONTENT */}
                         {activeTab === 'profile' && (
-                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
-                                {/* Decorative background blur */}
-                                <div className="absolute top-0 right-0 w-72 h-72 bg-primary/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+                            <div className="rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden pb-8">
+                                {/* Cover Photo Banner */}
+                                <div className="h-40 w-full bg-gradient-to-r from-primary/30 via-primary/10 to-transparent relative border-b border-border/40">
+                                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay pointer-events-none"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent"></div>
+                                </div>
                                 
-                                <h3 className="text-xl font-bold text-foreground mb-8">Profile Details</h3>
-                                
-                                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
-                                    {/* Avatar Column */}
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                            <Avatar className="h-32 w-32 ring-4 ring-primary/10 shadow-2xl transition-all duration-500 group-hover:ring-primary/40 group-hover:shadow-primary/20">
-                                                <AvatarImage src={avatarUrl} className="object-cover" />
-                                                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-amber-500/20 text-primary text-4xl font-black">
-                                                    {profile?.full_name?.charAt(0) || 'U'}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            
-                                            {/* Hover Overlay */}
-                                            <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white backdrop-blur-sm">
-                                                <Camera className="h-6 w-6 mb-1" />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider">Change</span>
-                                            </div>
+                                <div className="px-8 md:px-12 relative">
+                                    <div className="flex flex-col md:flex-row gap-10 items-start relative -mt-20">
+                                        {/* Avatar Column */}
+                                        <div className="flex flex-col items-center gap-4 shrink-0">
+                                            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                                <Avatar className="h-40 w-40 ring-4 ring-background shadow-2xl transition-all duration-500 group-hover:ring-primary/40 group-hover:shadow-primary/30 relative z-10">
+                                                    <AvatarImage src={avatarUrl} className="object-cover" />
+                                                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-5xl font-black">
+                                                        {profile?.full_name?.charAt(0) || 'U'}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                
+                                                {/* Hover Overlay */}
+                                                <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white backdrop-blur-sm z-20">
+                                                    <Camera className="h-7 w-7 mb-1.5" />
+                                                    <span className="text-[11px] font-extrabold uppercase tracking-widest">Update</span>
+                                                </div>
 
-                                            <button 
-                                                disabled={uploadingAvatar}
-                                                className="absolute bottom-1 right-1 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100 z-10"
-                                            >
-                                                {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                                            </button>
-                                            <input 
-                                                type="file" 
-                                                ref={fileInputRef} 
-                                                onChange={handleAvatarChange} 
-                                                accept="image/*" 
-                                                className="hidden" 
-                                            />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Avatar</p>
-                                            <p className="text-[10px] text-muted-foreground/60 mt-1">JPEG, PNG (Max 2MB)</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Form Column */}
-                                    <div className="flex-1 w-full space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Full Name</label>
-                                                <Input 
-                                                    value={fullName} 
-                                                    onChange={e => setFullName(e.target.value)} 
-                                                    className="rounded-2xl h-12 bg-secondary/30 border-border/50 focus-visible:ring-2 focus-visible:ring-primary/50 shadow-sm transition-all text-base px-4" 
+                                                <button 
+                                                    disabled={uploadingAvatar}
+                                                    className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/40 hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100 z-30"
+                                                >
+                                                    {uploadingAvatar ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                                </button>
+                                                <input 
+                                                    type="file" 
+                                                    ref={fileInputRef} 
+                                                    onChange={handleAvatarChange} 
+                                                    accept="image/*" 
+                                                    className="hidden" 
                                                 />
                                             </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Email Address</label>
-                                                <div className="relative">
-                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                            <div className="text-center bg-muted/50 py-1.5 px-4 rounded-full border border-border/50">
+                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Allowed: JPG, PNG</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Form Column */}
+                                        <div className="flex-1 w-full pt-16 md:pt-28 space-y-8">
+                                            
+                                            <div>
+                                                <h3 className="text-2xl font-extrabold text-foreground flex items-center gap-3">
+                                                    Personal Dossier
+                                                </h3>
+                                                <p className="text-sm text-muted-foreground mt-1">Review and modify your identity traces on the platform.</p>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8 p-6 bg-muted/30 rounded-3xl border border-border/40">
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <User className="h-3.5 w-3.5 text-primary" /> Full Legal Name
+                                                    </label>
+                                                    <Input 
+                                                        value={fullName} 
+                                                        onChange={e => setFullName(e.target.value)} 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/50 shadow-sm transition-all text-base px-4 font-medium" 
+                                                    />
+                                                </div>
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Mail className="h-3.5 w-3.5 text-primary" /> Authenticated Email
+                                                    </label>
                                                     <Input 
                                                         defaultValue={profile?.email || ''} 
                                                         disabled 
-                                                        className="rounded-2xl h-12 bg-secondary/30 border-border/50 opacity-60 pl-11 text-base cursor-not-allowed" 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
                                                     />
                                                 </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Department</label>
-                                                <div className="relative">
-                                                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Building2 className="h-3.5 w-3.5 text-primary" /> Assigned Department
+                                                    </label>
                                                     <Input 
-                                                        defaultValue={profile?.dept || 'N/A'} 
+                                                        defaultValue={profile?.dept || 'Institution Wide'} 
                                                         disabled 
-                                                        className="rounded-2xl h-12 bg-secondary/30 border-border/50 opacity-60 pl-11 text-base cursor-not-allowed font-medium" 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
                                                     />
                                                 </div>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Role Designation</label>
-                                                <div className="relative">
-                                                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-primary uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Shield className="h-3.5 w-3.5" /> Clearance Level
+                                                    </label>
                                                     <Input 
                                                         defaultValue={profile?.role?.toUpperCase() || ''} 
                                                         disabled 
-                                                        className="rounded-2xl h-12 bg-primary/5 border-primary/20 text-primary font-bold pl-11 text-base cursor-not-allowed" 
+                                                        className="rounded-2xl h-12 bg-primary/10 border-primary/20 text-primary font-bold text-base cursor-not-allowed tracking-wide" 
                                                     />
                                                 </div>
                                             </div>
-                                        </div>
-                                        
-                                        <div className="flex justify-end pt-6">
-                                            <Button 
-                                                onClick={handleSaveProfile} 
-                                                disabled={savingProfile || fullName.trim() === profile?.full_name} 
-                                                className="rounded-2xl gap-2 h-12 px-8 shadow-auto bg-gradient-to-r from-primary to-primary/80 hover:scale-105 active:scale-95 transition-all text-base font-bold text-white relative overflow-hidden group"
-                                            >
-                                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
-                                                {savingProfile ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Save className="h-5 w-5 relative z-10" />}
-                                                <span className="relative z-10">{savingProfile ? 'Saving...' : 'Save Changes'}</span>
-                                            </Button>
+                                            
+                                            <div className="flex justify-end pt-4">
+                                                <Button 
+                                                    onClick={handleSaveProfile} 
+                                                    disabled={savingProfile || fullName.trim() === profile?.full_name} 
+                                                    className="rounded-2xl gap-2 h-14 px-8 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95 transition-all text-base font-bold text-white relative overflow-hidden group"
+                                                >
+                                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
+                                                    {savingProfile ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Save className="h-5 w-5 relative z-10" />}
+                                                    <span className="relative z-10">{savingProfile ? 'Saving Protocol...' : 'Commit Changes'}</span>
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -285,51 +300,52 @@ export function SettingsPage() {
 
                         {/* SECURITY CONTENT */}
                         {activeTab === 'security' && (
-                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-72 h-72 bg-red-500/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-                                <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-3">
-                                    <div className="p-2 rounded-xl bg-red-500/10 text-red-500">
-                                        <Lock className="h-5 w-5" />
-                                    </div>
-                                    Security & Password
-                                </h3>
-                                <p className="text-sm text-muted-foreground mb-8">Ensure your account is using a long, random password to stay secure.</p>
+                            <div className="p-8 md:p-12 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/5 rounded-full blur-[100px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
                                 
-                                <div className="max-w-md space-y-5 bg-secondary/20 p-6 rounded-3xl border border-border/40">
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">New Password</label>
-                                        <div className="relative">
-                                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                            <Input 
-                                                type="password"
-                                                value={password}
-                                                onChange={e => setPassword(e.target.value)}
-                                                placeholder="Min. 6 characters"
-                                                className="rounded-2xl h-12 bg-card border-border/50 pl-11 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base" 
-                                            />
-                                        </div>
+                                <div className="flex items-center gap-4 mb-8">
+                                    <div className="p-4 rounded-3xl bg-red-500/10 text-red-500 border border-red-500/20 shadow-inner">
+                                        <Lock className="h-8 w-8" strokeWidth={1.5} />
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-1">Confirm Password</label>
-                                        <div className="relative">
-                                            <CheckCircle2 className={`absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${confirmPassword && password === confirmPassword ? 'text-emerald-500' : 'text-muted-foreground'}`} />
-                                            <Input 
-                                                type="password"
-                                                value={confirmPassword}
-                                                onChange={e => setConfirmPassword(e.target.value)}
-                                                placeholder="Re-enter new password"
-                                                className="rounded-2xl h-12 bg-card border-border/50 pl-11 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base" 
-                                            />
-                                        </div>
+                                    <div>
+                                        <h3 className="text-2xl font-extrabold text-foreground">Security Vault</h3>
+                                        <p className="text-sm text-muted-foreground mt-1">Fortify your account credentials.</p>
                                     </div>
-                                    <div className="pt-2">
+                                </div>
+                                
+                                <div className="max-w-lg space-y-6 bg-muted/30 p-8 rounded-[2rem] border border-border/60 shadow-sm">
+                                    <div className="space-y-3">
+                                        <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                            <Key className="h-3.5 w-3.5 text-primary" /> New Encryption Key
+                                        </label>
+                                        <Input 
+                                            type="password"
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            placeholder="Enter strong password (min of 6 chars)"
+                                            className="rounded-2xl h-14 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base font-medium px-5" 
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                            <CheckCircle2 className={`h-3.5 w-3.5 transition-colors ${confirmPassword && password === confirmPassword ? 'text-emerald-500' : 'text-primary'}`} /> Verify Encryption Key
+                                        </label>
+                                        <Input 
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={e => setConfirmPassword(e.target.value)}
+                                            placeholder="Re-enter password strictly"
+                                            className="rounded-2xl h-14 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/50 transition-all text-base font-medium px-5" 
+                                        />
+                                    </div>
+                                    <div className="pt-4">
                                         <Button 
                                             onClick={handleUpdatePassword} 
                                             disabled={updatingPassword || !password || !confirmPassword || password !== confirmPassword} 
-                                            className="rounded-2xl gap-2 w-full h-12 shadow-md hover:shadow-lg transition-all text-base font-bold"
+                                            className={`rounded-2xl gap-2 w-full h-14 transition-all duration-300 text-base font-bold shadow-xl ${password && password === confirmPassword ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20 text-white hover:scale-[1.02]' : 'bg-primary hover:bg-primary/90 shadow-primary/20 text-primary-foreground'}`}
                                         >
                                             {updatingPassword ? <Loader2 className="h-5 w-5 animate-spin" /> : <Shield className="h-5 w-5" />}
-                                            {updatingPassword ? 'Updating...' : 'Update Password'}
+                                            {updatingPassword ? 'Enforcing...' : 'Enforce New Key'}
                                         </Button>
                                     </div>
                                 </div>
@@ -338,40 +354,44 @@ export function SettingsPage() {
 
                         {/* APPEARANCE CONTENT */}
                         {activeTab === 'appearance' && (
-                            <div className="p-6 md:p-8 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-72 h-72 bg-amber-500/5 rounded-full blur-[80px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-                                <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-3">
-                                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
-                                        <Palette className="h-5 w-5" />
-                                    </div>
-                                    Appearance
-                                </h3>
-                                <p className="text-sm text-muted-foreground mb-8">Customize the look and feel of your Insight Dashboard.</p>
+                            <div className="p-8 md:p-12 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-[100px] -z-10 translate-x-1/2 -translate-y-1/2 pointer-events-none" />
                                 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+                                <div className="flex items-center gap-4 mb-10">
+                                    <div className="p-4 rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-inner">
+                                        <Paintbrush className="h-8 w-8" strokeWidth={1.5} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-extrabold text-foreground">Visual Interface</h3>
+                                        <p className="text-sm text-muted-foreground mt-1">Calibrate the dashboard aesthetics to your environment.</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                                     {[
-                                        { name: 'Light', icon: Sun, bg: 'bg-gradient-to-br from-white to-amber-50/50', border: 'border-amber-200/60 dark:border-border/50', value: 'light' },
-                                        { name: 'Dark', icon: Moon, bg: 'bg-gradient-to-br from-gray-900 to-gray-800', border: 'border-gray-700', textClass: 'text-white', value: 'dark' },
+                                        { name: 'Light', icon: Sun, desc: 'Maximum vividness', bg: 'bg-gradient-to-br from-white to-amber-50', border: 'border-amber-200/60 dark:border-border/60', textClass: 'text-slate-900', value: 'light' },
+                                        { name: 'Dark', icon: Moon, desc: 'Deep focus immersion', bg: 'bg-gradient-to-br from-slate-900 to-slate-950', border: 'border-slate-800', textClass: 'text-white', value: 'dark' },
+                                        { name: 'System', icon: Monitor, desc: 'Synchronized default', bg: 'bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900', border: 'border-slate-300 dark:border-slate-700', textClass: 'text-foreground', value: 'system' }
                                     ].map(t => {
                                         const Icon = t.icon;
-                                        const isActive = theme === t.value || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches === (t.value === 'dark'));
+                                        const isActive = theme === t.value;
                                         return (
                                             <button 
                                                 key={t.name} 
                                                 onClick={() => setTheme(t.value as any)}
-                                                className={`p-6 rounded-[2rem] border-2 ${t.bg} ${isActive ? 'border-primary shadow-xl ring-4 ring-primary/20 scale-[1.03]' : t.border} transition-all duration-300 hover:shadow-lg hover:scale-[1.01] text-left group relative outline-none`}
+                                                className={`p-6 rounded-[2rem] border-2 ${t.bg} ${isActive ? 'border-primary shadow-2xl ring-4 ring-primary/20 scale-[1.02]' : t.border} transition-all duration-300 hover:shadow-lg hover:scale-[1.01] text-left group relative outline-none flex flex-col items-center text-center`}
                                             >
                                                 {isActive && (
-                                                    <motion.div layoutId="theme-active" className="absolute top-5 right-5 w-5 h-5 rounded-full bg-primary shadow-lg flex items-center justify-center">
-                                                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                                    <motion.div layoutId="theme-active" className="absolute top-4 right-4 w-6 h-6 rounded-full bg-primary shadow-lg flex items-center justify-center border-2 border-background">
+                                                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                                                     </motion.div>
                                                 )}
-                                                <div className={`w-14 h-14 rounded-2xl mb-5 flex items-center justify-center ${isActive ? 'bg-primary/20 text-primary shadow-inner' : 'bg-black/5 dark:bg-white/5'} transition-colors duration-300 group-hover:rotate-12`}>
-                                                    <Icon className={`h-7 w-7 ${isActive ? 'text-primary' : (t.textClass || 'text-foreground')}`} />
+                                                <div className={`w-16 h-16 rounded-3xl mb-4 flex items-center justify-center ${isActive ? 'bg-primary/20 text-primary shadow-inner' : 'bg-black/5 dark:bg-white/5 text-muted-foreground'} transition-all duration-300 group-hover:-translate-y-1`}>
+                                                    <Icon className={`h-8 w-8 ${isActive ? 'text-primary' : t.textClass}`} strokeWidth={1.5} />
                                                 </div>
-                                                <p className={`text-xl font-black ${t.textClass || 'text-foreground'}`}>{t.name} Mode</p>
-                                                <p className={`text-sm mt-2 font-medium leading-relaxed ${t.textClass ? 'text-gray-400' : 'text-muted-foreground'}`}>
-                                                    {t.name === 'Light' ? 'Clean, bright, and highly legible for well-lit environments.' : 'Sleek, modern, and easy on the eyes for extended focus.'}
+                                                <p className={`text-lg font-black tracking-wide ${t.textClass}`}>{t.name}</p>
+                                                <p className={`text-xs mt-1.5 font-bold uppercase tracking-widest ${t.textClass ? 'opacity-60' : 'text-muted-foreground'}`}>
+                                                    {t.desc}
                                                 </p>
                                             </button>
                                         );
@@ -380,40 +400,61 @@ export function SettingsPage() {
                             </div>
                         )}
 
+                        {/* ADMIN CONTENT */}
+                        {activeTab === 'admin' && isAdminRole && (
+                            <div className="p-0 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <AdminManagementTab profile={profile} />
+                            </div>
+                        )}
+
+                        {/* ISSUES CONTENT */}
+                        {activeTab === 'issues' && (
+                            <div className="p-0 sm:p-4 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
+                                <IssuesTab isAdminRole={isAdminRole} />
+                            </div>
+                        )}
 
                         {/* ABOUT CONTENT */}
                         {activeTab === 'about' && (
-                            <div className="p-6 md:p-12 rounded-[2rem] bg-card border border-border/50 shadow-sm relative overflow-hidden text-center group">
-                                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-amber-500/5 -z-10 transition-opacity duration-700 opacity-50 group-hover:opacity-100" />
+                            <div className="p-8 md:p-16 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden text-center group">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--primary-color)_0%,transparent_100%)] opacity-[0.03] -z-10 group-hover:opacity-[0.06] transition-opacity duration-1000" />
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
                                 
                                 <motion.div 
-                                    initial={{ scale: 0.8, rotate: -5 }} 
-                                    animate={{ scale: 1, rotate: 0 }} 
-                                    transition={{ type: "spring", stiffness: 200, damping: 10 }}
-                                    className="w-28 h-28 rounded-[2rem] overflow-hidden mx-auto mb-8 shadow-2xl shadow-primary/30 ring-4 ring-primary/10"
+                                    initial={{ scale: 0.8, y: 20 }} 
+                                    animate={{ scale: 1, y: 0 }} 
+                                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                                    className="w-32 h-32 rounded-[2.5rem] overflow-hidden mx-auto mb-8 shadow-2xl shadow-primary/20 ring-4 ring-primary/10 bg-white"
                                 >
-                                    <img src={collegeLogo} alt="INSIGHT Logo" className="w-full h-full object-cover" />
+                                    <img src={logo} alt="INSIGHT Logo" className="w-full h-full object-contain p-2" />
                                 </motion.div>
                                 
-                                <h3 className="text-3xl font-black text-foreground tracking-tight">INSIGHT</h3>
-                                <p className="text-sm font-bold text-primary tracking-[0.2em] uppercase mt-2 mb-6">Empowering Education</p>
-                                <p className="text-xs text-muted-foreground mb-10">Built for <span className="font-bold text-foreground">MRCE</span> — Malla Reddy College of Engineering</p>
+                                <h3 className="text-4xl font-black text-foreground tracking-tight flex items-center justify-center gap-3">
+                                    INSIGHT <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-bold tracking-widest uppercase align-middle">v2.0</span>
+                                </h3>
+                                <p className="text-sm font-extrabold text-primary tracking-[0.25em] uppercase mt-3 mb-8">Empowering Education</p>
+                                <p className="text-sm text-foreground mb-12 font-medium">Engineered exclusively for <span className="font-extrabold text-primary">MRCE</span></p>
                                 
-                                <div className="max-w-md mx-auto space-y-3">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
                                     {[
-                                        { label: 'Version', value: 'v1.0.0' },
-                                        { label: 'Framework', value: 'React + Vite + Tailwind' },
-                                        { label: 'Database', value: 'Supabase PostgreSQL' },
-                                        { label: 'Mobile App', value: 'Attend-Me (React Native)' },
-                                    ].map(item => (
-                                        <div key={item.label} className="flex justify-between items-center p-4 rounded-2xl bg-secondary/40 border border-border/40 hover:bg-secondary/70 transition-all hover:scale-[1.01] shadow-sm">
-                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{item.label}</span>
-                                            <span className="text-sm font-black text-foreground">{item.value}</span>
-                                        </div>
+                                        { label: 'Core', value: 'React 18', icon: Monitor },
+                                        { label: 'Build', value: 'Vite 5', icon: Server },
+                                        { label: 'Cloud', value: 'Supabase', icon: Shield },
+                                        { label: 'Mobile', value: 'React Native', icon: Smartphone },
+                                    ].map((item, idx) => (
+                                        <motion.div 
+                                            key={item.label} 
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: idx * 0.1 }}
+                                            className="flex flex-col items-center justify-center p-6 rounded-3xl bg-muted/30 border border-border/40 hover:bg-muted/50 transition-all hover:scale-[1.03] shadow-sm group/stack"
+                                        >
+                                            <item.icon className="w-6 h-6 mb-3 text-muted-foreground group-hover/stack:text-primary transition-colors duration-300" strokeWidth={1.5} />
+                                            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mb-1">{item.label}</span>
+                                            <span className="text-sm font-bold text-foreground">{item.value}</span>
+                                        </motion.div>
                                     ))}
                                 </div>
-
-                                <p className="mt-10 text-sm text-muted-foreground">Made with <span className="text-red-500">❤️</span> by <span className="font-bold text-foreground">PJ</span></p>
                             </div>
                         )}
                     </motion.div>
@@ -422,3 +463,4 @@ export function SettingsPage() {
         </div>
     );
 }
+
