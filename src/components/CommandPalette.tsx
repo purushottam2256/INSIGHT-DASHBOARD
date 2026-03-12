@@ -4,7 +4,7 @@ import {
   Search, Command, X, LayoutDashboard, GraduationCap, Clock,
   CalendarCheck, CalendarDays, GitCompareArrows, FileSpreadsheet,
   Shield, BarChart3, Layers, AlertTriangle, Settings,
-  HelpCircle, ArrowRight, Moon, Sun, Monitor,
+  HelpCircle, ArrowRight, Moon, Sun, Monitor, IndianRupee,
 } from 'lucide-react';
 import { useSearch, SearchResultItem } from '@/hooks/useSearch';
 import { useTheme } from '@/components/theme-provider';
@@ -61,7 +61,7 @@ export default function CommandPalette() {
     { id: 'nav-leaves', label: 'Leave Manager', icon: CalendarDays, action: () => goTo('/leaves'), category: 'navigate', keywords: 'approve request' },
     { id: 'nav-compare', label: 'Compare', icon: GitCompareArrows, action: () => goTo('/compare'), category: 'navigate', keywords: 'analytics trends' },
     { id: 'nav-reports', label: 'Reports', icon: FileSpreadsheet, action: () => goTo('/reports'), category: 'navigate', keywords: 'generate export' },
-    { id: 'nav-compliance', label: 'Compliance', icon: Shield, action: () => goTo('/compliance'), category: 'navigate', keywords: 'condonation eligibility naac nba' },
+    { id: 'nav-project-fees', label: 'Project Fees', icon: IndianRupee, action: () => goTo('/project-fees'), category: 'navigate', keywords: 'fees payment collection project' },
     { id: 'nav-benchmarking', label: 'Benchmarking', icon: BarChart3, action: () => goTo('/benchmarking'), category: 'navigate', keywords: 'department performance' },
     { id: 'nav-sections', label: 'Section Manager', icon: Layers, action: () => goTo('/sections'), category: 'navigate', keywords: 'merge split' },
     { id: 'nav-audit', label: 'Audit Log', icon: Shield, action: () => goTo('/audit-log'), category: 'navigate', keywords: 'trail accountability' },

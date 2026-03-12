@@ -17,7 +17,7 @@ const pageTitles: Record<string, { title: string; subtitle?: string }> = {
     '/leaves': { title: 'Leave Manager', subtitle: 'Two-Stage Approvals' },
     '/compare': { title: 'Compare', subtitle: 'Analytics & Trends' },
     '/reports': { title: 'Reports', subtitle: 'Generate & Export' },
-    '/compliance': { title: 'Compliance', subtitle: 'Condonation & Eligibility' },
+    '/project-fees': { title: 'Project Fees', subtitle: 'Fee Collection & Tracking' },
     '/benchmarking': { title: 'Benchmarking', subtitle: 'Department Performance' },
     '/sections': { title: 'Sections', subtitle: 'Merge & Split' },
     '/calendar': { title: 'Calendar', subtitle: 'Events & Holidays' },

@@ -45,7 +45,7 @@ export interface Permissions {
   
   // Audit & Accountability
   canViewAuditLog: boolean;
-  canViewCompliance: boolean;
+  canViewProjectFees: boolean;
   canViewBenchmarking: boolean;     // Principal/MGT only
   
   // Section Management
@@ -112,7 +112,7 @@ export function usePermissions(): Permissions {
     
     // Audit
     canViewAuditLog: isHod || isElevated,
-    canViewCompliance: isHod || isElevated,
+    canViewProjectFees: isHod || isElevated,
     canViewBenchmarking: isPrincipal || isSystem,              // Principal/MGT only
     
     // Section Management

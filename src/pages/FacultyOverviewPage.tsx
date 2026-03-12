@@ -3,14 +3,24 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { DEPARTMENTS } from '@/lib/constants'
-import { Search, UserCog, Clock, Award, Loader2, Calendar, Mail, Building2 } from 'lucide-react'
+import {
+  Search, UserCog, Clock, Loader2, Calendar, Mail, Building2,
+  Phone, BarChart3, BookOpen, Users, TrendingUp, Briefcase,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 interface FacultyDetail {
   id: string; full_name: string; email: string; dept: string; role: string;
+  mobile: string | null; avatar_url: string | null;
 }
 
 interface TimetableEntry { day_of_week: number; period: number; subjects: { name: string; code: string } | null; dept: string; year: number; section: string; }
+
+interface AttendancePerf {
+  total_sessions: number;
+  total_present: number;
+  avg_rate: number;
+}
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -20,6 +30,7 @@ const FacultyOverviewPage = () => {
   const [faculty, setFaculty] = useState<FacultyDetail[]>([])
   const [selected, setSelected] = useState<FacultyDetail | null>(null)
   const [timetable, setTimetable] = useState<TimetableEntry[]>([])
+  const [perfStats, setPerfStats] = useState<AttendancePerf | null>(null)
   const [search, setSearch] = useState('')
   const [filterDept, setFilterDept] = useState(profile?.dept || '')
   const [loading, setLoading] = useState(true)
@@ -34,7 +45,7 @@ const FacultyOverviewPage = () => {
 
   const fetchFaculty = async () => {
     setLoading(true)
-    let query = supabase.from('profiles').select('*').in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']).order('full_name')
+    let query = supabase.from('profiles').select('id, full_name, email, dept, role, mobile, avatar_url').in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']).order('full_name')
     if (!isElevated && profile?.dept) query = query.eq('dept', profile.dept)
     const { data, error } = await query
     if (error) toast.error(error.message)
@@ -43,13 +54,58 @@ const FacultyOverviewPage = () => {
   }
 
   const loadFacultyById = async (id: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
-    if (data) { setSelected(data); loadTimetable(data.id) }
+    const { data } = await supabase.from('profiles').select('id, full_name, email, dept, role, mobile, avatar_url').eq('id', id).single()
+    if (data) { setSelected(data); loadTimetable(data.id); loadPerformance(data.id) }
   }
 
   const loadTimetable = async (facultyId: string) => {
     const { data } = await supabase.from('master_timetables').select('day_of_week, period, dept, year, section, subjects(name, code)').eq('faculty_id', facultyId)
     setTimetable((data as any) || [])
+  }
+
+  const loadPerformance = async (facultyId: string) => {
+    try {
+      // Count total sessions taken by this faculty
+      const { count: totalSessions } = await supabase
+        .from('attendance_sessions')
+        .select('*', { count: 'exact', head: true })
+        .eq('faculty_id', facultyId)
+
+      // Count total present+od marks across sessions
+      const { data: sessions } = await supabase
+        .from('attendance_sessions')
+        .select('id')
+        .eq('faculty_id', facultyId)
+
+      let totalPresent = 0
+      let totalStudents = 0
+
+      if (sessions && sessions.length > 0) {
+        const sessionIds = sessions.map(s => s.id)
+        // Get total attendance logs
+        const { count: totalLogs } = await supabase
+          .from('attendance_logs')
+          .select('*', { count: 'exact', head: true })
+          .in('session_id', sessionIds)
+
+        const { count: presentLogs } = await supabase
+          .from('attendance_logs')
+          .select('*', { count: 'exact', head: true })
+          .in('session_id', sessionIds)
+          .in('status', ['present', 'od'])
+
+        totalStudents = totalLogs || 0
+        totalPresent = presentLogs || 0
+      }
+
+      setPerfStats({
+        total_sessions: totalSessions || 0,
+        total_present: totalPresent,
+        avg_rate: totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0,
+      })
+    } catch {
+      setPerfStats(null)
+    }
   }
 
   const filtered = useMemo(() => faculty.filter(f => {
@@ -58,7 +114,7 @@ const FacultyOverviewPage = () => {
     return matchSearch && matchDept
   }), [faculty, search, filterDept])
 
-  const selectFaculty = (f: FacultyDetail) => { setSelected(f); loadTimetable(f.id) }
+  const selectFaculty = (f: FacultyDetail) => { setSelected(f); loadTimetable(f.id); loadPerformance(f.id) }
 
   const getEntry = (day: number, period: number) => timetable.find(t => t.day_of_week === day && t.period === period)
 
@@ -71,6 +127,11 @@ const FacultyOverviewPage = () => {
     }
     return m[role] || { bg: 'bg-muted text-muted-foreground', label: role }
   }
+
+  // Computed stats
+  const workingDays = new Set(timetable.map(t => t.day_of_week)).size
+  const uniqueClasses = new Set(timetable.map(t => `${t.dept}-${t.year}-${t.section}`)).size
+  const avgDailyLoad = workingDays > 0 ? (timetable.length / workingDays).toFixed(1) : '0'
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -104,9 +165,13 @@ const FacultyOverviewPage = () => {
               return (
                 <button key={f.id} onClick={() => selectFaculty(f)} className={`w-full text-left px-4 py-3 hover:bg-primary/5 transition-all duration-200 border-b border-border/20 group ${selected?.id === f.id ? 'bg-primary/8 border-l-3 border-l-primary' : ''}`}>
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selected?.id === f.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
-                      {f.full_name?.charAt(0) || '?'}
-                    </div>
+                    {f.avatar_url ? (
+                      <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selected?.id === f.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
+                        {f.full_name?.charAt(0) || '?'}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm truncate">{f.full_name}</div>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -130,20 +195,35 @@ const FacultyOverviewPage = () => {
         <div className="space-y-4">
           {selected ? (
             <>
-              {/* Profile Card */}
+              {/* Profile Card with Photo */}
               <div className="border border-border/40 rounded-2xl bg-card shadow-sm p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
                 <div className="flex items-start gap-5">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-primary/20 shrink-0">
-                    {selected.full_name?.charAt(0) || '?'}
-                  </div>
+                  {/* Photo */}
+                  {selected.avatar_url ? (
+                    <img
+                      src={selected.avatar_url}
+                      alt={selected.full_name}
+                      className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20 shrink-0">
+                      {selected.full_name?.charAt(0) || '?'}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <h2 className="text-2xl font-black tracking-tight">{selected.full_name}</h2>
                     <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
                       <Mail className="h-3.5 w-3.5" />
                       {selected.email}
                     </div>
-                    <div className="flex items-center gap-2 mt-3">
+                    {selected.mobile && (
+                      <div className="flex items-center gap-1.5 mt-0.5 text-sm text-muted-foreground">
+                        <Phone className="h-3.5 w-3.5" />
+                        {selected.mobile}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <span className={`px-3 py-1 rounded-xl text-xs font-bold ${getRoleBadge(selected.role).bg}`}>
                         {getRoleBadge(selected.role).label}
                       </span>
@@ -155,22 +235,59 @@ const FacultyOverviewPage = () => {
                   </div>
                 </div>
 
-                {/* Stats Row */}
-                <div className="grid grid-cols-3 gap-3 mt-6">
+                {/* Stats Grid — Schedule + Performance */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
                   {[
-                    { label: 'Scheduled Classes', value: timetable.length, icon: Clock, color: 'text-blue-500', bg: 'from-blue-500/10 to-blue-500/5', ring: 'ring-blue-500/20' },
-                    { label: 'Working Days', value: new Set(timetable.map(t => t.day_of_week)).size, icon: Calendar, color: 'text-emerald-500', bg: 'from-emerald-500/10 to-emerald-500/5', ring: 'ring-emerald-500/20' },
-                    { label: 'Unique Classes', value: new Set(timetable.map(t => `${t.dept}-${t.year}-${t.section}`)).size, icon: Award, color: 'text-amber-500', bg: 'from-amber-500/10 to-amber-500/5', ring: 'ring-amber-500/20' },
+                    { label: 'Weekly Classes', value: timetable.length, icon: Clock, color: 'text-blue-500', bg: 'from-blue-500/10 to-blue-500/5', ring: 'ring-blue-500/20' },
+                    { label: 'Working Days', value: workingDays, icon: Calendar, color: 'text-emerald-500', bg: 'from-emerald-500/10 to-emerald-500/5', ring: 'ring-emerald-500/20' },
+                    { label: 'Classes Taught', value: uniqueClasses, icon: Users, color: 'text-amber-500', bg: 'from-amber-500/10 to-amber-500/5', ring: 'ring-amber-500/20' },
+                    { label: 'Avg Daily Load', value: avgDailyLoad, icon: Briefcase, color: 'text-purple-500', bg: 'from-purple-500/10 to-purple-500/5', ring: 'ring-purple-500/20' },
+                    { label: 'Sessions Done', value: perfStats?.total_sessions || 0, icon: BookOpen, color: 'text-primary', bg: 'from-primary/10 to-primary/5', ring: 'ring-primary/20' },
+                    { label: 'Avg Attendance', value: perfStats ? `${perfStats.avg_rate}%` : '—', icon: TrendingUp, color: perfStats && perfStats.avg_rate >= 75 ? 'text-emerald-500' : 'text-amber-500', bg: perfStats && perfStats.avg_rate >= 75 ? 'from-emerald-500/10 to-emerald-500/5' : 'from-amber-500/10 to-amber-500/5', ring: perfStats && perfStats.avg_rate >= 75 ? 'ring-emerald-500/20' : 'ring-amber-500/20' },
                   ].map((c, i) => (
-                    <div key={i} className={`border border-border/40 rounded-2xl bg-gradient-to-br ${c.bg} p-4 text-center ring-1 ${c.ring} relative overflow-hidden`}>
-                      <div className="absolute -top-2 -right-2 w-10 h-10 bg-white/10 rounded-full blur-lg" />
-                      <c.icon className={`h-5 w-5 ${c.color} mx-auto mb-2 opacity-80`} />
-                      <p className={`text-2xl font-black ${c.color}`}>{c.value}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-0.5">{c.label}</p>
+                    <div key={i} className={`border border-border/40 rounded-2xl bg-gradient-to-br ${c.bg} p-3 text-center ring-1 ${c.ring} relative overflow-hidden`}>
+                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-white/10 rounded-full blur-lg" />
+                      <c.icon className={`h-4 w-4 ${c.color} mx-auto mb-1.5 opacity-80`} />
+                      <p className={`text-xl font-black ${c.color}`}>{c.value}</p>
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold mt-0.5">{c.label}</p>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Performance Bar (if we have data) */}
+              {perfStats && perfStats.total_sessions > 0 && (
+                <div className="border border-border/40 rounded-2xl bg-card shadow-sm p-5">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    Teaching Performance
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs mb-1.5">
+                        <span className="text-muted-foreground font-medium">Avg Class Attendance Rate</span>
+                        <span className="font-bold tabular-nums">{perfStats.avg_rate}%</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ease-out ${perfStats.avg_rate >= 75 ? 'bg-emerald-500' : perfStats.avg_rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${perfStats.avg_rate}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs mt-3">
+                      <div className="p-3 rounded-xl bg-secondary/30 text-center">
+                        <p className="text-lg font-black text-foreground">{perfStats.total_sessions}</p>
+                        <p className="text-muted-foreground font-bold uppercase text-[9px] tracking-wider">Sessions Conducted</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-secondary/30 text-center">
+                        <p className="text-lg font-black text-emerald-600">{perfStats.total_present}</p>
+                        <p className="text-muted-foreground font-bold uppercase text-[9px] tracking-wider">Total Present</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Timetable Grid */}
               <div className="border border-border/40 rounded-2xl bg-card shadow-sm overflow-hidden">

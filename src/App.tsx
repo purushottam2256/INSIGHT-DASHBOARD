@@ -18,7 +18,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { FullPageLoader } from "@/components/ui/LoadingState"
 
 // Lazy-loaded pages
-const CompliancePage = lazy(() => import("@/pages/CompliancePage"))
+const ProjectFeesPage = lazy(() => import("@/pages/ProjectFeesPage"))
 const BenchmarkingPage = lazy(() => import("@/pages/BenchmarkingPage"))
 const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"))
 const SemesterUpgrader = lazy(() => import("@/pages/SemesterUpgrader"))
@@ -66,7 +66,7 @@ function App() {
                         {/* Analytics */}
                         <Route path="/compare" element={<ComparePage />} />
                         <Route path="/reports" element={<ReportsPage />} />
-                        <Route path="/compliance" element={<CompliancePage />} />
+                        <Route path="/project-fees" element={<ProjectFeesPage />} />
                         <Route path="/benchmarking" element={
                           <ProtectedRoute allowedRoles={['principal', 'management', 'developer', 'admin']}>
                             <BenchmarkingPage />

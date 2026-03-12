@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   UserSearch,
   ChevronRight,
+  IndianRupee,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -83,7 +84,7 @@ export default function Sidebar({
       items: [
         { name: "Compare", href: "/compare", icon: GitCompareArrows },
         { name: "Reports", href: "/reports", icon: FileSpreadsheet, requiredPermission: "canViewReports" },
-        { name: "Compliance", href: "/compliance", icon: Shield, requiredPermission: "canViewCompliance" },
+        { name: "Project Fees", href: "/project-fees", icon: IndianRupee, requiredPermission: "canViewProjectFees" },
         { name: "Benchmarking", href: "/benchmarking", icon: BarChart3, requiredPermission: "canViewBenchmarking" },
       ],
     },

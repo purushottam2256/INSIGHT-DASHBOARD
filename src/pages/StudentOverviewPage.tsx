@@ -1,15 +1,20 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { DEPARTMENTS } from '@/lib/constants'
-import { Search, Users, TrendingUp, BarChart3, Calendar, Award, Loader2, GraduationCap, Phone, Mail, Droplets, Bluetooth, User } from 'lucide-react'
+import {
+  Search, Users, TrendingUp, BarChart3, Calendar, Award, Loader2,
+  GraduationCap, Phone, Mail, Droplets, Bluetooth, User, Camera,
+  UserCheck, Shield,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 interface StudentDetail {
   id: string; full_name: string; roll_no: string; email: string; mobile: string;
-  dept: string; year: number; section: string; gender: string; blood_group: string;
-  bluetooth_uuid: string; dob: string; batch: number;
+  parent_mobile: string; dept: string; year: number; section: string; gender: string;
+  blood_group: string; bluetooth_uuid: string; dob: string; batch: number;
+  photo_url: string | null;
 }
 
 interface AttendanceStat {
@@ -26,8 +31,11 @@ const StudentOverviewPage = () => {
   const [filterDept, setFilterDept] = useState(profile?.dept || '')
   const [filterYear, setFilterYear] = useState('')
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isElevated = ['principal', 'management', 'developer', 'admin'].includes(profile?.role || '')
+  const canEdit = isElevated || profile?.role === 'hod'
 
   useEffect(() => {
     fetchStudents()
@@ -53,6 +61,35 @@ const StudentOverviewPage = () => {
   const loadStats = async (studentId: string) => {
     const { data } = await supabase.from('view_student_aggregates').select('*').eq('student_id', studentId).single()
     setStats(data)
+  }
+
+  // Photo upload
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedStudent || !canEdit || !e.target.files?.length) return
+    const file = e.target.files[0]
+    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return }
+
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `students/${selectedStudent.id}.${ext}`
+
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      const photoUrl = urlData.publicUrl + '?t=' + Date.now()
+
+      const { error: updateError } = await supabase.from('students').update({ photo_url: photoUrl }).eq('id', selectedStudent.id)
+      if (updateError) throw updateError
+
+      setSelectedStudent({ ...selectedStudent, photo_url: photoUrl })
+      toast.success('Photo updated!')
+    } catch (err: any) {
+      toast.error('Upload failed: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
   }
 
   const filtered = useMemo(() => students.filter(s => {
@@ -104,9 +141,13 @@ const StudentOverviewPage = () => {
             ) : filtered.length > 0 ? filtered.slice(0, 200).map(s => (
               <button key={s.id} onClick={() => selectStudent(s)} className={`w-full text-left px-4 py-3 hover:bg-primary/5 transition-all duration-200 border-b border-border/20 group ${selectedStudent?.id === s.id ? 'bg-primary/8 border-l-3 border-l-primary' : ''}`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selectedStudent?.id === s.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
-                    {s.full_name.charAt(0)}
-                  </div>
+                  {s.photo_url ? (
+                    <img src={s.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                  ) : (
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selectedStudent?.id === s.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
+                      {s.full_name.charAt(0)}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm truncate">{s.full_name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -129,19 +170,45 @@ const StudentOverviewPage = () => {
         <div className="space-y-4">
           {selectedStudent ? (
             <>
-              {/* Profile Card */}
+              {/* Profile Card with Photo */}
               <div className="border border-border/40 rounded-2xl bg-card shadow-sm p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
                 <div className="flex items-start gap-5">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-primary/20 shrink-0">
-                    {selectedStudent.full_name.charAt(0)}
+                  {/* Photo Section */}
+                  <div className="relative group shrink-0">
+                    {selectedStudent.photo_url ? (
+                      <img
+                        src={selectedStudent.photo_url}
+                        alt={selectedStudent.full_name}
+                        className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
+                        {selectedStudent.full_name.charAt(0)}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        {uploading ? (
+                          <Loader2 className="h-5 w-5 text-white animate-spin" />
+                        ) : (
+                          <Camera className="h-5 w-5 text-white" />
+                        )}
+                      </button>
+                    )}
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <h2 className="text-2xl font-black tracking-tight">{selectedStudent.full_name}</h2>
                     <p className="text-sm text-muted-foreground font-mono mt-0.5">{selectedStudent.roll_no}</p>
-                    <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className="px-3 py-1 rounded-xl bg-primary/10 text-primary font-bold text-xs">
-                        {selectedStudent.dept}
+                        {selectedStudent.dept.toUpperCase()}
                       </span>
                       <span className="px-3 py-1 rounded-xl bg-secondary text-foreground font-bold text-xs">
                         Year {selectedStudent.year} • Section {selectedStudent.section}
@@ -149,19 +216,29 @@ const StudentOverviewPage = () => {
                       <span className="px-3 py-1 rounded-xl bg-secondary text-muted-foreground font-medium text-xs">
                         Batch {selectedStudent.batch}
                       </span>
+                      {stats && (
+                        <span className={`px-3 py-1 rounded-xl font-bold text-xs ring-1 ${
+                          stats.attendance_percentage >= 75
+                            ? 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-600 ring-amber-500/20'
+                        }`}>
+                          {stats.attendance_percentage >= 75 ? '✅ Eligible' : '⚠️ Low Attendance'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Info Grid */}
+                {/* Info Grid — Personal + Contact + Academic */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
                   {[
                     { icon: Phone, label: 'Mobile', value: selectedStudent.mobile || '—' },
+                    { icon: Phone, label: 'Parent Mobile', value: selectedStudent.parent_mobile || '—' },
                     { icon: Mail, label: 'Email', value: selectedStudent.email || '—' },
                     { icon: User, label: 'Gender', value: selectedStudent.gender || '—' },
-                    { icon: Calendar, label: 'DOB', value: selectedStudent.dob || '—' },
+                    { icon: Calendar, label: 'Date of Birth', value: selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
                     { icon: Droplets, label: 'Blood Group', value: selectedStudent.blood_group || '—' },
-                    { icon: GraduationCap, label: 'Batch', value: `B${selectedStudent.batch}` },
+                    { icon: GraduationCap, label: 'Batch', value: selectedStudent.batch ? `B${selectedStudent.batch}` : '—' },
                     { icon: Bluetooth, label: 'BLE Device', value: selectedStudent.bluetooth_uuid ? '✓ Linked' : '✗ Not set' },
                   ].map((f, i) => (
                     <div key={i} className="p-3 rounded-xl bg-secondary/30 border border-border/30 space-y-1 hover:bg-secondary/50 transition-colors">
@@ -219,19 +296,17 @@ const StudentOverviewPage = () => {
                     ))}
                   </div>
 
-                  {/* Eligibility Badge */}
+                  {/* Eligibility Badge — No detained reference */}
                   <div className="mt-5 p-3 rounded-xl text-center text-xs font-bold">
                     {stats.attendance_percentage >= 75 ? (
-                      <div className="bg-emerald-500/10 text-emerald-600 rounded-xl p-3 ring-1 ring-emerald-500/20">
-                        ✅ Eligible — Above 75% attendance threshold
-                      </div>
-                    ) : stats.attendance_percentage >= 65 ? (
-                      <div className="bg-amber-500/10 text-amber-600 rounded-xl p-3 ring-1 ring-amber-500/20">
-                        ⚠️ Condonation Zone — {75 - stats.attendance_percentage}% below threshold
+                      <div className="bg-emerald-500/10 text-emerald-600 rounded-xl p-3 ring-1 ring-emerald-500/20 flex items-center justify-center gap-2">
+                        <UserCheck className="h-4 w-4" />
+                        Eligible — Above 75% attendance threshold
                       </div>
                     ) : (
-                      <div className="bg-red-500/10 text-red-600 rounded-xl p-3 ring-1 ring-red-500/20">
-                        ❌ Detained — Below 65% minimum requirement
+                      <div className="bg-amber-500/10 text-amber-600 rounded-xl p-3 ring-1 ring-amber-500/20 flex items-center justify-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Attention Required — {75 - stats.attendance_percentage}% below threshold
                       </div>
                     )}
                   </div>

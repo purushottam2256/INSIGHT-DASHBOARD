@@ -4,6 +4,8 @@
   <p><strong>The Definitive Institutional Operating System.</strong></p>
   <p><em>Engineered for Scale, Speed, and Deep Academic Telemetry.</em></p>
   
+  <h3>🚀 <a href="https://mrce-insight.vercel.app/">Live Preview Available</a></h3>
+  
   <p>
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" />
     <img alt="React" src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" />
