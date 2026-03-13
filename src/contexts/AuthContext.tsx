@@ -9,6 +9,7 @@ export interface UserProfile {
   role: string
   dept?: string | null
   full_name?: string | null
+  avatar_url?: string | null
 }
 
 interface AuthContextType {
@@ -71,19 +72,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 1. Check Admins Table First (Priority)
       const { data: adminDataArr, error: adminError } = await supabase
         .from("admins")
-        .select("role, dept, full_name")
+        .select("role, dept, full_name, avatar_url")
         .eq("id", userId);
       
       const adminData = adminDataArr && adminDataArr.length > 0 ? adminDataArr[0] : null;
 
       if (!adminError && adminData) {
         setRole(adminData.role as UserRole)
-        
         setProfile({ 
           id: userId, 
           role: adminData.role,
           dept: adminData.dept || null,
-          full_name: adminData.full_name || null 
+          full_name: adminData.full_name || null,
+          avatar_url: adminData.avatar_url || null
         })
         return
       }
@@ -91,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 2. Fallback to Profiles (Faculty/Staff)
       const { data: profileDataArr, error: profileError } = await supabase
         .from("profiles")
-        .select("role, dept, full_name")
+        .select("role, dept, full_name, avatar_url")
         .eq("id", userId);
 
       const profileData = profileDataArr && profileDataArr.length > 0 ? profileDataArr[0] : null;
