@@ -165,13 +165,11 @@ const FacultyOverviewPage = () => {
               return (
                 <button key={f.id} onClick={() => selectFaculty(f)} className={`w-full text-left px-4 py-3 hover:bg-primary/5 transition-all duration-200 border-b border-border/20 group ${selected?.id === f.id ? 'bg-primary/8 border-l-3 border-l-primary' : ''}`}>
                   <div className="flex items-center gap-3">
-                    {f.avatar_url ? (
-                      <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                    ) : (
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selected?.id === f.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
-                        {f.full_name?.charAt(0) || '?'}
-                      </div>
-                    )}
+                    <img 
+                      src={f.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(f.full_name || 'Faculty')}&background=random&color=fff`} 
+                      alt="" 
+                      className={`w-9 h-9 rounded-xl object-cover shrink-0 transition-all ${selected?.id === f.id ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : ''}`} 
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm truncate">{f.full_name}</div>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -200,17 +198,11 @@ const FacultyOverviewPage = () => {
                 <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
                 <div className="flex items-start gap-5">
                   {/* Photo */}
-                  {selected.avatar_url ? (
-                    <img
-                      src={selected.avatar_url}
-                      alt={selected.full_name}
-                      className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20 shrink-0">
-                      {selected.full_name?.charAt(0) || '?'}
-                    </div>
-                  )}
+                  <img
+                    src={selected.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(selected.full_name || 'Faculty')}&background=random&color=fff&size=256`}
+                    alt={selected.full_name}
+                    className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20 shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <h2 className="text-2xl font-black tracking-tight">{selected.full_name}</h2>
                     <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">

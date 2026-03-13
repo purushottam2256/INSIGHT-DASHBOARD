@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Bluetooth, Loader2, Search, Upload, Download, Trash2, Edit2, X, ChevronDown, ChevronUp, Info, Filter } from "lucide-react"
+import { Bluetooth, Loader2, Search, Upload, Download, Trash2, Edit2, X, ChevronDown, ChevronUp, Info, Filter, Camera, User } from "lucide-react"
 import { DEPARTMENTS } from "@/lib/constants"
 import { toast } from "sonner"
 
@@ -26,6 +26,7 @@ export interface Student {
   section: string
   bluetooth_uuid: string | null
   is_le: boolean
+  avatar_url?: string | null
 }
 
 const emptyForm = {
@@ -42,7 +43,8 @@ const emptyForm = {
     year: "1",
     section: "A",
     bluetooth_uuid: "",
-    is_le: false
+    is_le: false,
+    avatar_url: ""
 }
 
 // H&S dept only manages Year 1, other depts manage Year 2-4
@@ -68,6 +70,8 @@ export function StudentRegistration() {
   
   const [formData, setFormData] = useState(emptyForm)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const isHod = profile?.role === 'hod'
   const allowedYears = getAllowedYears(profile?.dept || undefined, profile?.role || undefined)
@@ -151,6 +155,37 @@ export function StudentRegistration() {
     }
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      if (file.size > 2 * 1024 * 1024) {
+          toast.error("Image must be under 2MB")
+          return
+      }
+
+      setUploadingAvatar(true)
+      try {
+          const fileExt = file.name.split('.').pop() || 'jpg'
+          const fileName = `${editingId || 'new_' + Date.now()}-${Math.random()}.${fileExt}`
+          
+          const { error: uploadError } = await supabase.storage
+              .from('avatars')
+              .upload(fileName, file, { upsert: true })
+              
+          if (uploadError) throw uploadError
+          
+          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
+          setFormData(prev => ({ ...prev, avatar_url: data.publicUrl }))
+          toast.success("Image uploaded, will be saved on submit")
+      } catch (error: any) {
+          toast.error("Upload failed: " + error.message)
+      } finally {
+          setUploadingAvatar(false)
+          if (avatarInputRef.current) avatarInputRef.current.value = ''
+      }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.full_name.trim() || !formData.roll_no.trim()) {
@@ -185,7 +220,8 @@ export function StudentRegistration() {
             year: parseInt(formData.year),
             section: formData.section.toUpperCase(),
             bluetooth_uuid: formData.bluetooth_uuid.trim(),
-            is_le: formData.is_le
+            is_le: formData.is_le,
+            avatar_url: formData.avatar_url || null
         }
 
         if (editingId) {
@@ -230,7 +266,8 @@ export function StudentRegistration() {
           year: student.year?.toString() || '1',
           section: student.section,
           bluetooth_uuid: student.bluetooth_uuid || '',
-          is_le: student.is_le || false
+          is_le: student.is_le || false,
+          avatar_url: student.avatar_url || ''
       })
       setShowForm(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -371,6 +408,25 @@ export function StudentRegistration() {
                 </CardHeader>
                 <CardContent className="pt-4">
                     <form onSubmit={handleSubmit} className="space-y-3">
+                        {/* Avatar Upload Section */}
+                        <div className="flex flex-col items-center gap-2 mb-4">
+                            <div className="h-20 w-20 rounded-full border border-border shadow-sm overflow-hidden bg-muted/30 flex items-center justify-center relative group">
+                                {formData.avatar_url ? (
+                                    <img src={formData.avatar_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                    <User className="h-8 w-8 text-muted-foreground" />
+                                )}
+                                <div 
+                                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                >
+                                    {uploadingAvatar ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-5 w-5 text-white" />}
+                                </div>
+                            </div>
+                            <input type="file" ref={avatarInputRef} className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleAvatarUpload} />
+                            <span className="text-[10px] text-muted-foreground font-medium">Profile Photo</span>
+                        </div>
+
                         {/* Row 1: Name + Roll */}
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
@@ -595,8 +651,19 @@ export function StudentRegistration() {
                                     <tr key={s.id} className="hover:bg-muted/10 transition-colors">
                                         <td className="px-4 py-2.5 font-mono text-xs font-medium">{s.roll_no}</td>
                                         <td className="px-4 py-2.5">
-                                            <div className="font-medium text-sm">{s.full_name}</div>
-                                            {s.email && <div className="text-[10px] text-muted-foreground">{s.email}</div>}
+                                            <div className="flex items-center gap-3">
+                                                {s.avatar_url ? (
+                                                    <img src={s.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover shadow-sm border border-border/50" />
+                                                ) : (
+                                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold border border-primary/20">
+                                                        {s.full_name.charAt(0)}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <div className="font-medium text-sm">{s.full_name}</div>
+                                                    {s.email && <div className="text-[10px] text-muted-foreground">{s.email}</div>}
+                                                </div>
+                                            </div>
                                         </td>
                                         <td className="px-4 py-2.5">
                                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">

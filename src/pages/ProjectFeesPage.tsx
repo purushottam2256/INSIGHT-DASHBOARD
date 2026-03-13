@@ -350,8 +350,8 @@ export default function ProjectFeesPage() {
 
     fees.forEach(f => {
       const counts = feeStudentCounts[f.id] || { total: 0, paid: 0 };
-      totalExpected += counts.total * f.amount;
-      totalCollected += counts.paid * f.amount;
+      totalExpected += counts.total * Number(f.amount);
+      totalCollected += counts.paid * Number(f.amount);
       if (getStatusInfo(f).label === 'Overdue') overdueCount++;
       if (getStatusInfo(f).label === 'Complete') completeCount++;
     });

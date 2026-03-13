@@ -178,7 +178,7 @@ export default function Sidebar({
                 "border-[3px] shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-primary/20",
                 isCollapsed ? "h-11 w-11 border-primary/20" : "h-11 w-11 border-background",
               )}>
-                <AvatarImage src={userImage} className="object-cover" />
+                <AvatarImage src={userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=random&color=fff`} className="object-cover" />
                 <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-sm font-black">
                   {userName?.charAt(0) || "U"}
                 </AvatarFallback>

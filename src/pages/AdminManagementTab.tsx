@@ -44,6 +44,8 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
         avatar_url: "", phone: "", designation: "", joining_date: "", gender: "Male",
         qualification: "", experience_years: "", address: "", date_of_birth: "", blood_group: ""
     })
+    
+    const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null)
 
     const isDeveloper = profile?.role === 'developer'
 
@@ -69,6 +71,7 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
 
     const handleOpenCreate = () => {
         setEditingAdmin(null)
+        setSelectedAvatarFile(null)
         setFormData({
             full_name: "", email: "", username: "", role: "management", dept: "none", password: "",
             avatar_url: "", phone: "", designation: "", joining_date: "", gender: "Male",
@@ -79,6 +82,7 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
 
     const handleOpenEdit = (admin: AdminProfile) => {
         setEditingAdmin(admin)
+        setSelectedAvatarFile(null)
         setFormData({
             full_name: admin.full_name, email: admin.email, username: admin.username,
             role: admin.role, dept: admin.dept || "none", password: "",
@@ -98,17 +102,10 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
             toast.error('Image must be less than 2MB')
             return
         }
-        try {
-            const base64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader()
-                reader.readAsDataURL(file)
-                reader.onload = () => resolve(reader.result as string)
-                reader.onerror = error => reject(error)
-            })
-            setFormData(prev => ({ ...prev, avatar_url: base64 }))
-        } catch (err) {
-            toast.error('Failed to read image')
-        }
+        
+        setSelectedAvatarFile(file)
+        const objectUrl = URL.createObjectURL(file)
+        setFormData(prev => ({ ...prev, avatar_url: objectUrl }))
     }
 
     const handleDelete = async (admin: AdminProfile) => {
@@ -140,14 +137,28 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
 
         setIsSaving(true)
         const finalDept = formData.dept === 'none' ? null : formData.dept
+        let finalAvatarUrl = formData.avatar_url
 
         try {
+            if (selectedAvatarFile) {
+                const fileExt = selectedAvatarFile.name.split('.').pop() || 'jpg'
+                const fileName = `admin-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+                const { error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(fileName, selectedAvatarFile, { upsert: true })
+
+                if (uploadError) throw uploadError
+
+                const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName)
+                finalAvatarUrl = urlData.publicUrl
+            }
+
             const rpcPayload = {
                 p_full_name: formData.full_name.trim(),
                 p_role: formData.role,
                 p_username: formData.username.trim(),
                 p_dept: finalDept,
-                p_avatar_url: formData.avatar_url || null,
+                p_avatar_url: finalAvatarUrl || null,
                 p_phone: formData.phone || null,
                 p_designation: formData.designation || null,
                 p_joining_date: formData.joining_date || null,

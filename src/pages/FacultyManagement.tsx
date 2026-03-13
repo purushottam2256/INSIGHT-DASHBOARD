@@ -47,8 +47,12 @@ export function FacultyManagement() {
     role: "faculty",
     dept: "",
     year: "1",
-    section: "A"
+    section: "A",
+    avatar_url: ""
   })
+
+  const [isUploadingNew, setIsUploadingNew] = useState(false)
+  const newAvatarInputRef = useRef<HTMLInputElement>(null)
 
   // List of sections (A-D) and years (1-4)
   const YEARS = ["1", "2", "3", "4"]
@@ -117,6 +121,7 @@ export function FacultyManagement() {
     e.preventDefault()
     if (!formData.email.trim() || !formData.fullName.trim()) {
       toast.error("Email and Name are required")
+      return;
     }
 
     setLoading(true)
@@ -148,6 +153,15 @@ export function FacultyManagement() {
         const newUserId = newUserData?.id;
         if (!newUserId) throw new Error("Could not retrieve new user ID."); 
 
+        // 3. IF we have an avatar URL, update the newly created profile
+        if (formData.avatar_url) {
+            try {
+                await supabase.from('profiles').update({ avatar_url: formData.avatar_url }).eq('id', newUserId);
+            } catch (e) {
+                console.warn("Avatar update failed", e);
+            }
+        }
+
         // 4. (Optional) Insert Class Incharge context if applicable
         if (formData.role === 'class_incharge' && finalDept) {
              try {
@@ -174,7 +188,7 @@ export function FacultyManagement() {
             { duration: 15000 }
         );
 
-        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A" });
+        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A", avatar_url: "" });
         fetchFaculty();
 
     } catch (error: any) {
@@ -242,6 +256,33 @@ export function FacultyManagement() {
       toast.error("Upload failed: " + error.message)
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  const handleNewAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingNew(true)
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const fileName = `new_faculty_${Date.now()}-${Math.random()}.${fileExt}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true })
+      
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
+      
+      setFormData(prev => ({ ...prev, avatar_url: data.publicUrl }))
+      toast.success("Image uploaded")
+    } catch (error: any) {
+      toast.error("Upload failed: " + error.message)
+    } finally {
+      setIsUploadingNew(false)
+      if (newAvatarInputRef.current) newAvatarInputRef.current.value = ''
     }
   }
 
@@ -320,6 +361,24 @@ export function FacultyManagement() {
                 </CardHeader>
                 <CardContent className="pt-4">
                     <form onSubmit={handleCreateFaculty} className="space-y-3">
+                        <div className="flex flex-col items-center gap-2 mb-4">
+                            <div className="h-20 w-20 rounded-full border border-border shadow-sm overflow-hidden bg-muted/30 flex items-center justify-center relative group">
+                                {formData.avatar_url ? (
+                                    <img src={formData.avatar_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                    <UserCog className="h-8 w-8 text-muted-foreground" />
+                                )}
+                                <div 
+                                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    onClick={() => newAvatarInputRef.current?.click()}
+                                >
+                                    {isUploadingNew ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Camera className="h-5 w-5 text-white" />}
+                                </div>
+                            </div>
+                            <input type="file" ref={newAvatarInputRef} className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleNewAvatarUpload} />
+                            <span className="text-[10px] text-muted-foreground font-medium">Profile Photo</span>
+                        </div>
+
                         <div className="space-y-1">
                             <Label className="text-xs">Email <span className="text-red-500">*</span></Label>
                             <Input type="email" placeholder="faculty@mrce.in" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required className="h-8 text-sm" />

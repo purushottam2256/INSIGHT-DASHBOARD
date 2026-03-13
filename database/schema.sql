@@ -180,7 +180,7 @@ CREATE TABLE public.students (
     batch INTEGER CHECK (batch IN (1, 2)), -- For lab sessions
     bluetooth_uuid TEXT UNIQUE, -- Beacon UUID
     face_id_data TEXT, -- Encrypted face recognition data
-    photo_url TEXT, -- Student profile photo URL
+    avatar_url TEXT, -- Student profile photo URL
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -2792,3 +2792,50 @@ CREATE TRIGGER update_pf_students_updated_at
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Function: Auto-update faculty role based on class incharge assignments
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_class_incharge_role_update()
+RETURNS TRIGGER AS $$
+DECLARE
+    active_count INTEGER;
+    target_faculty_id UUID;
+    current_role public.user_role;
+BEGIN
+    -- Determine the target faculty_id based on the operation
+    IF TG_OP = 'DELETE' THEN
+        target_faculty_id := OLD.faculty_id;
+    ELSE
+        target_faculty_id := NEW.faculty_id;
+    END IF;
+
+    -- Get the current role of the faculty
+    SELECT role INTO current_role FROM public.profiles WHERE id = target_faculty_id;
+
+    -- We only promote 'faculty' to 'class_incharge' or demote 'class_incharge' to 'faculty'.
+    -- We don't want to demote a 'hod' or 'principal' just because they get unassigned.
+    IF current_role NOT IN ('faculty', 'class_incharge') THEN
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+
+    -- Count active incharge assignments for this faculty
+    SELECT COUNT(*) INTO active_count
+    FROM public.class_incharges
+    WHERE faculty_id = target_faculty_id AND is_active = TRUE;
+
+    IF active_count > 0 AND current_role = 'faculty' THEN
+        UPDATE public.profiles SET role = 'class_incharge' WHERE id = target_faculty_id;
+    ELSIF active_count = 0 AND current_role = 'class_incharge' THEN
+        UPDATE public.profiles SET role = 'faculty' WHERE id = target_faculty_id;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_class_incharge_role_change ON public.class_incharges;
+CREATE TRIGGER on_class_incharge_role_change
+    AFTER INSERT OR UPDATE OF is_active, faculty_id OR DELETE ON public.class_incharges
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_class_incharge_role_update();

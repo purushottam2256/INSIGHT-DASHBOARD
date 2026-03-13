@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { DEPARTMENTS } from '@/lib/constants'
 import {
   Search, Users, TrendingUp, BarChart3, Calendar, Award, Loader2,
-  GraduationCap, Phone, Mail, Droplets, Bluetooth, User, Camera,
+  GraduationCap, Phone, Mail, Droplets, Bluetooth, User,
   UserCheck, Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -14,7 +14,7 @@ interface StudentDetail {
   id: string; full_name: string; roll_no: string; email: string; mobile: string;
   parent_mobile: string; dept: string; year: number; section: string; gender: string;
   blood_group: string; bluetooth_uuid: string; dob: string; batch: number;
-  photo_url: string | null;
+  avatar_url: string | null;
 }
 
 interface AttendanceStat {
@@ -31,11 +31,8 @@ const StudentOverviewPage = () => {
   const [filterDept, setFilterDept] = useState(profile?.dept || '')
   const [filterYear, setFilterYear] = useState('')
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isElevated = ['principal', 'management', 'developer', 'admin'].includes(profile?.role || '')
-  const canEdit = isElevated || profile?.role === 'hod'
 
   useEffect(() => {
     fetchStudents()
@@ -63,34 +60,6 @@ const StudentOverviewPage = () => {
     setStats(data)
   }
 
-  // Photo upload
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedStudent || !canEdit || !e.target.files?.length) return
-    const file = e.target.files[0]
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return }
-
-    setUploading(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `students/${selectedStudent.id}.${ext}`
-
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-      if (uploadError) throw uploadError
-
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-      const photoUrl = urlData.publicUrl + '?t=' + Date.now()
-
-      const { error: updateError } = await supabase.from('students').update({ photo_url: photoUrl }).eq('id', selectedStudent.id)
-      if (updateError) throw updateError
-
-      setSelectedStudent({ ...selectedStudent, photo_url: photoUrl })
-      toast.success('Photo updated!')
-    } catch (err: any) {
-      toast.error('Upload failed: ' + err.message)
-    } finally {
-      setUploading(false)
-    }
-  }
 
   const filtered = useMemo(() => students.filter(s => {
     const matchSearch = !search || s.full_name.toLowerCase().includes(search.toLowerCase()) || s.roll_no.toLowerCase().includes(search.toLowerCase())
@@ -141,13 +110,11 @@ const StudentOverviewPage = () => {
             ) : filtered.length > 0 ? filtered.slice(0, 200).map(s => (
               <button key={s.id} onClick={() => selectStudent(s)} className={`w-full text-left px-4 py-3 hover:bg-primary/5 transition-all duration-200 border-b border-border/20 group ${selectedStudent?.id === s.id ? 'bg-primary/8 border-l-3 border-l-primary' : ''}`}>
                 <div className="flex items-center gap-3">
-                  {s.photo_url ? (
-                    <img src={s.photo_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                  ) : (
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 transition-colors ${selectedStudent?.id === s.id ? 'bg-primary text-white' : 'bg-secondary/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
-                      {s.full_name.charAt(0)}
-                    </div>
-                  )}
+                  <img 
+                    src={s.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(s.full_name || 'User')}&background=random&color=fff`} 
+                    alt="" 
+                    className={`w-9 h-9 rounded-xl object-cover shrink-0 transition-all ${selectedStudent?.id === s.id ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : ''}`} 
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm truncate">{s.full_name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -175,33 +142,11 @@ const StudentOverviewPage = () => {
                 <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-bl-full" />
                 <div className="flex items-start gap-5">
                   {/* Photo Section */}
-                  <div className="relative group shrink-0">
-                    {selectedStudent.photo_url ? (
-                      <img
-                        src={selectedStudent.photo_url}
-                        alt={selectedStudent.full_name}
-                        className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
-                        {selectedStudent.full_name.charAt(0)}
-                      </div>
-                    )}
-                    {canEdit && (
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        {uploading ? (
-                          <Loader2 className="h-5 w-5 text-white animate-spin" />
-                        ) : (
-                          <Camera className="h-5 w-5 text-white" />
-                        )}
-                      </button>
-                    )}
-                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                  </div>
+                    <img
+                      src={selectedStudent.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedStudent.full_name || 'User')}&background=random&color=fff&size=256`}
+                      alt={selectedStudent.full_name}
+                      className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-2 ring-primary/20"
+                    />
 
                   <div className="flex-1 min-w-0">
                     <h2 className="text-2xl font-black tracking-tight">{selectedStudent.full_name}</h2>

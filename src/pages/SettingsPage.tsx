@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
     User, Shield, Info, 
-    Save, Camera, Mail, Building2,
+    Mail, Building2,
     Sun, Moon, Loader2, Bug,
     Lock, Key, ChevronRight, CheckCircle2,
-    Sparkles, Monitor, Smartphone, Server, Paintbrush, Fingerprint
+    Sparkles, Monitor, Smartphone, Server, Paintbrush, Fingerprint,
+    Phone, Briefcase, CalendarDays, Droplets, GraduationCap, Award, MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,12 +26,11 @@ export function SettingsPage() {
     
     // Profile State
     const [fullName, setFullName] = useState('');
-    const [savingProfile, setSavingProfile] = useState(false);
+    const [extendedProfile, setExtendedProfile] = useState<any>(null);
+    const [loadingProfile, setLoadingProfile] = useState(false);
     
     // Avatar State
     const [avatarUrl, setAvatarUrl] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     // Password State
     const [password, setPassword] = useState('');
@@ -42,58 +42,24 @@ export function SettingsPage() {
         if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
     }, [profile]);
 
-    // Handle Profile Update
-    const handleSaveProfile = async () => {
-        if (!profile?.id) return;
-        setSavingProfile(true);
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ full_name: fullName.trim() })
-                .eq('id', profile.id);
-
-            if (error) throw error;
-            toast.success('Profile updated successfully');
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to update profile');
-        } finally {
-            setSavingProfile(false);
-        }
-    };
-
-    // Handle Avatar Upload (Base64)
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !profile?.id) return;
-
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit
-            toast.error('Image must be less than 2MB');
-            return;
-        }
-
-        setUploadingAvatar(true);
-        try {
-            const base64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = error => reject(error);
-            });
-
-            const { error } = await supabase
-                .from('profiles')
-                .update({ avatar_url: base64 })
-                .eq('id', profile.id);
-
-            if (error) throw error;
-            setAvatarUrl(base64);
-            toast.success('Profile picture updated successfully');
-        } catch (err: any) {
-            toast.error(err.message || 'Failed to update profile picture');
-        } finally {
-            setUploadingAvatar(false);
-        }
-    };
+    useEffect(() => {
+        const fetchExtendedProfile = async () => {
+            if (!profile?.id) return;
+            setLoadingProfile(true);
+            try {
+                const tableToQuery = ['hod', 'principal', 'management', 'developer', 'admin'].includes(profile.role) ? 'admins' : 'profiles';
+                const { data, error } = await supabase.from(tableToQuery).select('*').eq('id', profile.id).single();
+                if (!error && data) {
+                    setExtendedProfile(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch extended profile', err);
+            } finally {
+                setLoadingProfile(false);
+            }
+        };
+        fetchExtendedProfile();
+    }, [profile?.id, profile?.role]);
 
     // Handle Password Update
     const handleUpdatePassword = async () => {
@@ -195,36 +161,13 @@ export function SettingsPage() {
                                     <div className="flex flex-col md:flex-row gap-10 items-start relative -mt-20">
                                         {/* Avatar Column */}
                                         <div className="flex flex-col items-center gap-4 shrink-0">
-                                            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                                <Avatar className="h-40 w-40 ring-4 ring-background shadow-2xl transition-all duration-500 group-hover:ring-primary/40 group-hover:shadow-primary/30 relative z-10">
-                                                    <AvatarImage src={avatarUrl} className="object-cover" />
+                                            <div className="relative">
+                                                <Avatar className="h-40 w-40 ring-4 ring-background shadow-2xl relative z-10">
+                                                    <AvatarImage src={avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'User')}&background=random&color=fff`} className="object-cover" />
                                                     <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-5xl font-black">
                                                         {profile?.full_name?.charAt(0) || 'U'}
                                                     </AvatarFallback>
                                                 </Avatar>
-                                                
-                                                {/* Hover Overlay */}
-                                                <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white backdrop-blur-sm z-20">
-                                                    <Camera className="h-7 w-7 mb-1.5" />
-                                                    <span className="text-[11px] font-extrabold uppercase tracking-widest">Update</span>
-                                                </div>
-
-                                                <button 
-                                                    disabled={uploadingAvatar}
-                                                    className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/40 hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100 z-30"
-                                                >
-                                                    {uploadingAvatar ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                                                </button>
-                                                <input 
-                                                    type="file" 
-                                                    ref={fileInputRef} 
-                                                    onChange={handleAvatarChange} 
-                                                    accept="image/*" 
-                                                    className="hidden" 
-                                                />
-                                            </div>
-                                            <div className="text-center bg-muted/50 py-1.5 px-4 rounded-full border border-border/50">
-                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Allowed: JPG, PNG</p>
                                             </div>
                                         </div>
 
@@ -246,7 +189,8 @@ export function SettingsPage() {
                                                     <Input 
                                                         value={fullName} 
                                                         onChange={e => setFullName(e.target.value)} 
-                                                        className="rounded-2xl h-12 bg-background border-border/60 focus-visible:ring-2 focus-visible:ring-primary/50 shadow-sm transition-all text-base px-4 font-medium" 
+                                                        disabled
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium px-4" 
                                                     />
                                                 </div>
                                                 <div className="space-y-2.5">
@@ -254,7 +198,7 @@ export function SettingsPage() {
                                                         <Mail className="h-3.5 w-3.5 text-primary" /> Authenticated Email
                                                     </label>
                                                     <Input 
-                                                        defaultValue={profile?.email || ''} 
+                                                        defaultValue={profile?.email || extendedProfile?.email || ''} 
                                                         disabled 
                                                         className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
                                                     />
@@ -264,7 +208,7 @@ export function SettingsPage() {
                                                         <Building2 className="h-3.5 w-3.5 text-primary" /> Assigned Department
                                                     </label>
                                                     <Input 
-                                                        defaultValue={profile?.dept || 'Institution Wide'} 
+                                                        defaultValue={profile?.dept || extendedProfile?.dept || 'Institution Wide'} 
                                                         disabled 
                                                         className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
                                                     />
@@ -279,19 +223,118 @@ export function SettingsPage() {
                                                         className="rounded-2xl h-12 bg-primary/10 border-primary/20 text-primary font-bold text-base cursor-not-allowed tracking-wide" 
                                                     />
                                                 </div>
+                                                
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Fingerprint className="h-3.5 w-3.5 text-primary" /> Username
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.username || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium px-4" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Phone className="h-3.5 w-3.5 text-primary" /> Contact Number
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.phone || extendedProfile?.mobile || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <User className="h-3.5 w-3.5 text-primary" /> Gender
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.gender || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Briefcase className="h-3.5 w-3.5 text-primary" /> Designation
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.designation || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <GraduationCap className="h-3.5 w-3.5 text-primary" /> Qualification
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.qualification || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Award className="h-3.5 w-3.5 text-primary" /> Experience (Years)
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.experience_years?.toString() || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <CalendarDays className="h-3.5 w-3.5 text-primary" /> Date of Birth
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.date_of_birth || extendedProfile?.dob || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Droplets className="h-3.5 w-3.5 text-primary" /> Blood Group
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.blood_group || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <CalendarDays className="h-3.5 w-3.5 text-primary" /> Joining Date
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.joining_date || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2.5 md:col-span-2">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <MapPin className="h-3.5 w-3.5 text-primary" /> Address
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.address || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
+                                                    />
+                                                </div>
                                             </div>
-                                            
-                                            <div className="flex justify-end pt-4">
-                                                <Button 
-                                                    onClick={handleSaveProfile} 
-                                                    disabled={savingProfile || fullName.trim() === profile?.full_name} 
-                                                    className="rounded-2xl gap-2 h-14 px-8 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95 transition-all text-base font-bold text-white relative overflow-hidden group"
-                                                >
-                                                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out" />
-                                                    {savingProfile ? <Loader2 className="h-5 w-5 animate-spin relative z-10" /> : <Save className="h-5 w-5 relative z-10" />}
-                                                    <span className="relative z-10">{savingProfile ? 'Saving Protocol...' : 'Commit Changes'}</span>
-                                                </Button>
-                                            </div>
+
                                         </div>
                                     </div>
                                 </div>
