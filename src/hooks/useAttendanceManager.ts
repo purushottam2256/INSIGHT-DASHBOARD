@@ -147,7 +147,7 @@ export function useAttendanceManager() {
         setLoading(true)
         const { data, error } = await supabase
             .from('students')
-            .select('id, roll_no, full_name, batch')
+            .select('id, roll_no, full_name, batch, is_le')
             .eq('dept', dept)
             .eq('year', year)
             .eq('section', section)

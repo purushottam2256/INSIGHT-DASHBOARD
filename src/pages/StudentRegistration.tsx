@@ -25,6 +25,7 @@ export interface Student {
   year: number
   section: string
   bluetooth_uuid: string | null
+  is_le: boolean
 }
 
 const emptyForm = {
@@ -40,7 +41,8 @@ const emptyForm = {
     dept: "",
     year: "1",
     section: "A",
-    bluetooth_uuid: ""
+    bluetooth_uuid: "",
+    is_le: false
 }
 
 // H&S dept only manages Year 1, other depts manage Year 2-4
@@ -182,7 +184,8 @@ export function StudentRegistration() {
             dept: formData.dept,
             year: parseInt(formData.year),
             section: formData.section.toUpperCase(),
-            bluetooth_uuid: formData.bluetooth_uuid.trim()
+            bluetooth_uuid: formData.bluetooth_uuid.trim(),
+            is_le: formData.is_le
         }
 
         if (editingId) {
@@ -226,7 +229,8 @@ export function StudentRegistration() {
           dept: student.dept,
           year: student.year?.toString() || '1',
           section: student.section,
-          bluetooth_uuid: student.bluetooth_uuid || ''
+          bluetooth_uuid: student.bluetooth_uuid || '',
+          is_le: student.is_le || false
       })
       setShowForm(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -421,8 +425,23 @@ export function StudentRegistration() {
                             </div>
                         </div>
 
-                        {/* Row 3: Gender — only essential personal field */}
+                        {/* Row 3: Gender & LE Status */}
                         <div className="grid grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs text-foreground flex items-center justify-between">
+                                    Admission Type
+                                    {formData.is_le && <span className="bg-primary/20 text-primary px-1.5 py-0 rounded text-[9px] uppercase tracking-widest ml-1 font-bold">LE</span>}
+                                </Label>
+                                <Select value={formData.is_le ? "le" : "reqular"} onValueChange={(v) => setFormData({ ...formData, is_le: v === "le" })}>
+                                    <SelectTrigger className={`h-8 text-sm font-medium ${formData.is_le ? 'bg-primary/5 border-primary/30 text-primary' : 'bg-background'}`}>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="reqular">Regular</SelectItem>
+                                        <SelectItem value="le">Lateral Entry</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div className="space-y-1">
                                 <Label className="text-xs">Gender</Label>
                                 <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v})}>

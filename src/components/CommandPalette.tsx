@@ -5,6 +5,7 @@ import {
   CalendarCheck, CalendarDays, GitCompareArrows, FileSpreadsheet,
   Shield, BarChart3, Layers, AlertTriangle, Settings,
   HelpCircle, ArrowRight, Moon, Sun, Monitor, IndianRupee,
+  Megaphone, UserSearch,
 } from 'lucide-react';
 import { useSearch, SearchResultItem } from '@/hooks/useSearch';
 import { useTheme } from '@/components/theme-provider';
@@ -54,21 +55,25 @@ export default function CommandPalette() {
 
   // Navigation actions
   const navActions: ActionItem[] = useMemo(() => [
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, action: () => goTo('/dashboard'), category: 'navigate', keywords: 'home overview' },
-    { id: 'nav-registration', label: 'Registration', icon: GraduationCap, action: () => goTo('/registration'), category: 'navigate', keywords: 'students faculty' },
-    { id: 'nav-timetable', label: 'Timetable', icon: Clock, action: () => goTo('/timetable'), category: 'navigate', keywords: 'schedule classes' },
-    { id: 'nav-attendance', label: 'Monthly Overview', icon: CalendarCheck, action: () => goTo('/attendance-manager'), category: 'navigate', keywords: 'mark track attendance' },
-    { id: 'nav-leaves', label: 'Leave Manager', icon: CalendarDays, action: () => goTo('/leaves'), category: 'navigate', keywords: 'approve request' },
-    { id: 'nav-compare', label: 'Compare', icon: GitCompareArrows, action: () => goTo('/compare'), category: 'navigate', keywords: 'analytics trends' },
-    { id: 'nav-reports', label: 'Reports', icon: FileSpreadsheet, action: () => goTo('/reports'), category: 'navigate', keywords: 'generate export' },
-    { id: 'nav-project-fees', label: 'Project Fees', icon: IndianRupee, action: () => goTo('/project-fees'), category: 'navigate', keywords: 'fees payment collection project' },
-    { id: 'nav-benchmarking', label: 'Benchmarking', icon: BarChart3, action: () => goTo('/benchmarking'), category: 'navigate', keywords: 'department performance' },
-    { id: 'nav-sections', label: 'Section Manager', icon: Layers, action: () => goTo('/sections'), category: 'navigate', keywords: 'merge split' },
-    { id: 'nav-audit', label: 'Audit Log', icon: Shield, action: () => goTo('/audit-log'), category: 'navigate', keywords: 'trail accountability' },
-    { id: 'nav-semester', label: 'Semester Upgrade', icon: AlertTriangle, action: () => goTo('/semester-upgrade'), category: 'navigate', keywords: 'year promote' },
-    { id: 'nav-calendar', label: 'Calendar', icon: CalendarDays, action: () => goTo('/calendar'), category: 'navigate', keywords: 'events holidays' },
-    { id: 'nav-settings', label: 'Settings', icon: Settings, action: () => goTo('/settings'), category: 'navigate', keywords: 'preferences config' },
-    { id: 'nav-help', label: 'Help', icon: HelpCircle, action: () => goTo('/help'), category: 'navigate', keywords: 'support faq' },
+    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, action: () => goTo('/dashboard'), category: 'navigate', keywords: 'home overview main summary stats' },
+    { id: 'nav-registration', label: 'Registration', icon: GraduationCap, action: () => goTo('/registration'), category: 'navigate', keywords: 'students faculty register enroll add new student' },
+    { id: 'nav-timetable', label: 'Timetable', icon: Clock, action: () => goTo('/timetable'), category: 'navigate', keywords: 'schedule classes periods slots time table' },
+    { id: 'nav-attendance', label: 'Monthly Overview', icon: CalendarCheck, action: () => goTo('/attendance-manager'), category: 'navigate', keywords: 'mark track attendance monthly record register' },
+    { id: 'nav-leaves', label: 'Leave Manager', icon: CalendarDays, action: () => goTo('/leaves'), category: 'navigate', keywords: 'approve request leave absence permission od' },
+    { id: 'nav-compare', label: 'Compare', icon: GitCompareArrows, action: () => goTo('/compare'), category: 'navigate', keywords: 'analytics trends comparison department class' },
+    { id: 'nav-reports', label: 'Reports', icon: FileSpreadsheet, action: () => goTo('/reports'), category: 'navigate', keywords: 'generate export csv excel download report attendance' },
+    { id: 'nav-project-fees', label: 'Project Fees', icon: IndianRupee, action: () => goTo('/project-fees'), category: 'navigate', keywords: 'fees payment collection project money finance' },
+    { id: 'nav-benchmarking', label: 'Benchmarking', icon: BarChart3, action: () => goTo('/benchmarking'), category: 'navigate', keywords: 'department performance ranking benchmark compare' },
+    { id: 'nav-sections', label: 'Section Manager', icon: Layers, action: () => goTo('/sections'), category: 'navigate', keywords: 'merge split section class manage' },
+    { id: 'nav-audit', label: 'Audit Log', icon: Shield, action: () => goTo('/audit-log'), category: 'navigate', keywords: 'trail accountability log history track changes audit' },
+    { id: 'nav-semester', label: 'Semester Upgrade', icon: AlertTriangle, action: () => goTo('/semester-upgrade'), category: 'navigate', keywords: 'year promote upgrade semester advance' },
+    { id: 'nav-calendar', label: 'Calendar', icon: CalendarDays, action: () => goTo('/calendar'), category: 'navigate', keywords: 'events holidays dates academic calendar' },
+    { id: 'nav-broadcast', label: 'Broadcast', icon: Megaphone, action: () => goTo('/broadcast'), category: 'navigate', keywords: 'announce notification send message broadcast alert' },
+    { id: 'nav-overview', label: 'Overview', icon: UserSearch, action: () => goTo('/overview'), category: 'navigate', keywords: 'student faculty overview search lookup detail profile' },
+    { id: 'nav-student-overview', label: 'Student Overview', icon: GraduationCap, action: () => goTo('/overview?tab=students'), category: 'navigate', keywords: 'student detail profile info enrollment roll number' },
+    { id: 'nav-faculty-overview', label: 'Faculty Overview', icon: UserSearch, action: () => goTo('/overview?tab=faculty'), category: 'navigate', keywords: 'faculty teacher professor staff detail profile' },
+    { id: 'nav-settings', label: 'Settings', icon: Settings, action: () => goTo('/settings'), category: 'navigate', keywords: 'preferences config admin administrator manage users account' },
+    { id: 'nav-help', label: 'Help', icon: HelpCircle, action: () => goTo('/help'), category: 'navigate', keywords: 'support faq guide documentation help how tutorial' },
   ], []);
 
   const themeActions: ActionItem[] = useMemo(() => [

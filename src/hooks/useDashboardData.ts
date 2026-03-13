@@ -42,7 +42,7 @@ export const useDashboardData = (filters?: DashboardFilters) => {
         try {
             setLoading(true);
 
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
 
             // 2. Leave Requests
             const { data: rawLeaves } = await supabase

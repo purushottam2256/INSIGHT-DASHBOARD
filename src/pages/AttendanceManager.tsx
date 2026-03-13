@@ -74,8 +74,11 @@ export function AttendanceManager() {
     const generateExcelData = () => {
         const data: any[] = []
         filteredRoster.forEach(student => {
+             const rollStr = student.roll_no;
+             const displayRollNo = student.is_le && rollStr.length >= 2 ? `${rollStr} - LE-${rollStr.slice(-2)}` : rollStr;
+
              const row: any = {
-                 'Roll No': student.roll_no,
+                 'Roll No': displayRollNo,
                  'Student Name': student.full_name,
                  'Batch': student.batch
              }
