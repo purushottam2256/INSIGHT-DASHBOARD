@@ -275,7 +275,7 @@ const AttendanceAnalytics = ({ sessions = [], onFilterChange, loading }: Attenda
                     )}
 
                   <ResponsiveContainer width="100%" height="100%">
-                        {lineChartData.data && lineChartData.data.length > 0 ? (
+                        {lineChartData.data && lineChartData.data.length > 0 && lineChartData.lines.length > 0 ? (
                             <LineChart data={lineChartData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)', fontWeight: 600 }} dy={10} />
