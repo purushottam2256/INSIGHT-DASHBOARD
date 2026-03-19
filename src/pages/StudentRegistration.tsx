@@ -649,7 +649,10 @@ export function StudentRegistration() {
                             ) : filteredStudents.length > 0 ? (
                                 filteredStudents.slice(0, 100).map((s) => (
                                     <tr key={s.id} className="hover:bg-muted/10 transition-colors">
-                                        <td className="px-4 py-2.5 font-mono text-xs font-medium">{s.roll_no}</td>
+                                        <td className="px-4 py-2.5 font-mono text-xs font-medium">
+                                            {s.roll_no}
+                                            {s.is_le && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] font-black bg-primary/15 text-primary uppercase tracking-widest">LE</span>}
+                                        </td>
                                         <td className="px-4 py-2.5">
                                             <div className="flex items-center gap-3">
                                                 {s.avatar_url ? (

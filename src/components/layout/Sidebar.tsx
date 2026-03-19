@@ -84,7 +84,7 @@ export default function Sidebar({
       items: [
         { name: "Compare", href: "/compare", icon: GitCompareArrows },
         { name: "Reports", href: "/reports", icon: FileSpreadsheet, requiredPermission: "canViewReports" },
-        { name: "Project Fees", href: "/project-fees", icon: IndianRupee, requiredPermission: "canViewProjectFees" },
+        { name: "Student Fees", href: "/project-fees", icon: IndianRupee, requiredPermission: "canViewProjectFees" },
         { name: "Benchmarking", href: "/benchmarking", icon: BarChart3, requiredPermission: "canViewBenchmarking" },
       ],
     },
@@ -92,6 +92,7 @@ export default function Sidebar({
       label: "Management",
       items: [
         { name: "Overview", href: "/overview", icon: UserSearch, requiredPermission: "canViewReports" },
+        { name: "Faculty Logs", href: "/faculty-logs", icon: Shield, requiredPermission: "canViewReports" },
         { name: "Calendar", href: "/calendar", icon: CalendarRange, requiredPermission: "canEditCalendar" },
         { name: "Broadcast", href: "/broadcast", icon: Megaphone, requiredPermission: "canAdminBroadcast" },
       ],
@@ -151,7 +152,7 @@ export default function Sidebar({
             </h2>
             <p className="text-[9px] font-extrabold tracking-[0.2em] uppercase mt-1 flex items-center gap-1.5 bg-clip-text text-transparent bg-gradient-to-r from-primary to-amber-500">
               <Sparkles className="w-2.5 h-2.5 text-primary" />
-              Empowering Education
+              Digitalizing Education
             </p>
           </div>
         </Link>

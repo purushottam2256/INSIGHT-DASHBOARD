@@ -44,7 +44,7 @@ export function CalendarPage() {
     const [newType, setNewType] = useState<'holiday' | 'exam' | 'event'>('event');
     const [newDescription, setNewDescription] = useState('');
 
-    const canEdit = ['hod', 'principal', 'management', 'admin', 'developer'].includes(role || '');
+    const canEdit = ['hod', 'principal', 'management', 'developer'].includes(role || '');
 
     useEffect(() => {
         const fetchEvents = async () => {
@@ -53,22 +53,40 @@ export function CalendarPage() {
             const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
 
             // 1. Fetch user-created events from Supabase (holidays table)
-            const { data, error } = await supabase
+            let query = supabase
                 .from('holidays')
                 .select('*')
                 .gte('date', start)
                 .lte('date', end)
                 .order('date');
+                
+            const { data, error } = await query;
 
-            const dbEvents = !error ? ((data || []).map((e: any) => ({
+            const dbEvents = !error ? ((data || [])
+                // Filter events: If it's an HOD, they should only see exams/events created by them or their dept,
+                // or general holidays (where dept is null).
+                .filter((e: any) => {
+                    if (['hod', 'class_incharge', 'faculty'].includes(role || '')) {
+                        // If it has a dept, it must match user's dept. If it doesn't, it's public.
+                        if (e.dept && e.dept !== (role === 'hod' || role === 'faculty' || role === 'class_incharge' ? '@currentDept' : '')) { 
+                            // We need userDept. We'll get it from a hook properly, but for now we filter conditionally later or 
+                            // assume the DB does it if we can't easily. Actually, let's fetch profile dept.
+                            return true; // We handles this below when we inject userDept
+                        }
+                    }
+                    return true;
+                })
+                .map((e: any) => ({
                 id: e.id,
                 date: e.date,
                 title: e.name,
-                type: 'holiday' as const,
+                type: (e.type || 'holiday') as 'holiday' | 'exam' | 'event',
                 description: e.description,
+                dept: e.dept,
+                created_by: e.created_by
             })) as CalendarEvent[]) : [];
 
-            // 2. Auto-fetch Indian public holidays from free API (date.nager.at — no key needed)
+            // 2. Auto-fetch Indian public holidays from free API
             let holidayEvents: CalendarEvent[] = [];
             try {
                 const year = currentMonth.getFullYear();
@@ -86,13 +104,30 @@ export function CalendarPage() {
                         }));
                 }
             } catch {
-                // Silently fail — holidays are optional
+                // Silently fail
             }
 
-            // 3. Merge: DB events take priority, then API holidays
-            const seen = new Set(dbEvents.map(e => e.date + e.title));
+            // Get user dept for filtering DB events
+            const { data: { session } } = await supabase.auth.getSession();
+            let userDept = '';
+            let userId = session?.user?.id;
+            if (userId) {
+                const { data: profile } = await supabase.from('profiles').select('dept').eq('id', userId).single();
+                userDept = profile?.dept || '';
+            }
+
+            // Filter dbEvents based on dept
+            const filteredDbEvents = dbEvents.filter((e: any) => {
+                if (['hod', 'faculty', 'class_incharge'].includes(role || '')) {
+                    if (e.dept && e.dept !== userDept) return false;
+                }
+                return true;
+            });
+
+            // 3. Merge: DB events take priority
+            const seen = new Set(filteredDbEvents.map(e => e.date + e.title));
             const merged = [
-                ...dbEvents,
+                ...filteredDbEvents,
                 ...holidayEvents.filter(h => !seen.has(h.date + h.title)),
             ];
 
@@ -100,20 +135,18 @@ export function CalendarPage() {
             setLoading(false);
         };
         fetchEvents();
-    }, [currentMonth]);
+    }, [currentMonth, role]);
 
     const days = useMemo(() => {
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
         const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-        // Pad the beginning to start on Monday
         const startDay = monthStart.getDay();
         const paddingBefore = startDay === 0 ? 6 : startDay - 1;
         const paddedDays: (Date | null)[] = Array(paddingBefore).fill(null);
         paddedDays.push(...allDays);
 
-        // Pad end to fill last row
         while (paddedDays.length % 7 !== 0) {
             paddedDays.push(null);
         }
@@ -132,13 +165,33 @@ export function CalendarPage() {
         if (!newTitle.trim() || !selectedDate) return;
         setAddLoading(true);
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            let userDept = null;
+            let profileExists = false;
+            if (session?.user?.id) {
+                const { data: profile } = await supabase.from('profiles').select('dept').eq('id', session.user.id).single();
+                if (profile) {
+                    profileExists = true;
+                    userDept = profile.dept;
+                }
+            }
+
+            const payload: any = {
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                name: newTitle.trim(),
+                description: newDescription.trim() || null,
+                type: newType,
+                // Only set created_by if user exists in profiles table (avoids FK violation)
+                created_by: profileExists ? session?.user?.id : null
+            };
+            
+            if (role === 'hod' && userDept) {
+                payload.dept = userDept;
+            }
+
             const { error } = await supabase
                 .from('holidays')
-                .insert({
-                    date: format(selectedDate, 'yyyy-MM-dd'),
-                    name: newTitle.trim(),
-                    description: newDescription.trim() || null,
-                });
+                .insert(payload);
             if (error) throw error;
 
             // Re-trigger the full fetch (DB + API) by toggling the month state
@@ -211,9 +264,20 @@ export function CalendarPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('holidays').delete().eq('id', id);
-        if (!error) setEvents(prev => prev.filter(e => e.id !== id));
+    const handleDelete = async (e: any) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (role === 'hod' && e.created_by && e.created_by !== session?.user?.id) {
+            toast.error("You can only delete events you created.");
+            return;
+        }
+
+        const { error } = await supabase.from('holidays').delete().eq('id', e.id);
+        if (!error) {
+            setEvents(prev => prev.filter(ev => ev.id !== e.id));
+            toast.success("Event deleted");
+        } else {
+            toast.error("Failed to delete event");
+        }
     };
 
     return (
@@ -355,7 +419,7 @@ export function CalendarPage() {
                                                             {e.description && <p className="text-[11px] font-medium text-muted-foreground/80 mt-1">{e.description}</p>}
                                                         </div>
                                                         {canEdit && (
-                                                            <button onClick={() => handleDelete(e.id)} className="text-muted-foreground/40 hover:text-red-500 transition-colors p-1 hover:bg-red-500/10 rounded-lg absolute top-2 right-2">
+                                                            <button onClick={() => handleDelete(e)} className="text-muted-foreground/40 hover:text-red-500 transition-colors p-1 hover:bg-red-500/10 rounded-lg absolute top-2 right-2">
                                                                 <X className="h-4 w-4" />
                                                             </button>
                                                         )}

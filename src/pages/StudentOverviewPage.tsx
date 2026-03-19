@@ -14,7 +14,7 @@ interface StudentDetail {
   id: string; full_name: string; roll_no: string; email: string; mobile: string;
   parent_mobile: string; dept: string; year: number; section: string; gender: string;
   blood_group: string; bluetooth_uuid: string; dob: string; batch: number;
-  avatar_url: string | null;
+  avatar_url: string | null; is_le?: boolean;
 }
 
 interface AttendanceStat {
@@ -32,7 +32,7 @@ const StudentOverviewPage = () => {
   const [filterYear, setFilterYear] = useState('')
   const [loading, setLoading] = useState(true)
 
-  const isElevated = ['principal', 'management', 'developer', 'admin'].includes(profile?.role || '')
+  const isElevated = ['principal', 'management', 'developer'].includes(profile?.role || '')
 
   useEffect(() => {
     fetchStudents()
@@ -118,7 +118,10 @@ const StudentOverviewPage = () => {
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm truncate">{s.full_name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-mono text-muted-foreground">{s.roll_no}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {s.roll_no}
+                        {s.is_le && <span className="ml-1 px-1 py-[1px] rounded-[3px] font-black bg-primary/20 text-primary uppercase tracking-widest text-[8px]">LE</span>}
+                      </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-bold">{s.dept}-Y{s.year}-{s.section}</span>
                     </div>
                   </div>
@@ -150,7 +153,10 @@ const StudentOverviewPage = () => {
 
                   <div className="flex-1 min-w-0">
                     <h2 className="text-2xl font-black tracking-tight">{selectedStudent.full_name}</h2>
-                    <p className="text-sm text-muted-foreground font-mono mt-0.5">{selectedStudent.roll_no}</p>
+                    <p className="text-sm text-muted-foreground font-mono mt-0.5 flex items-center gap-2">
+                        {selectedStudent.roll_no}
+                        {selectedStudent.is_le && <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-primary/20 text-primary uppercase tracking-widest">LE</span>}
+                    </p>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className="px-3 py-1 rounded-xl bg-primary/10 text-primary font-bold text-xs">
                         {selectedStudent.dept.toUpperCase()}

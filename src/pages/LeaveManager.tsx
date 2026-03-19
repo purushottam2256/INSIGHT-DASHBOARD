@@ -25,10 +25,19 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
     accepted: { label: 'Approved', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
     rejected: { label: 'Declined', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
     declined: { label: 'Declined', color: 'text-red-600 dark:text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+    expired: { label: 'Expired', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-500/10 border-gray-500/20' },
 }
 
 /** Is this a "pending at HOD" status? (backward-compat) */
 const isHodPending = (s: string) => s === 'pending' || s === 'pending_hod'
+
+const getDynamicStatus = (leave: any): string => {
+    // If it's pending but the end date is past, mark as expired locally 
+    if ((leave.status === 'pending' || leave.status === 'pending_hod' || leave.status === 'pending_principal') && new Date(leave.start_date) < new Date(new Date().setHours(0,0,0,0))) {
+        return 'expired';
+    }
+    return leave.status;
+};
 
 const REASON_CATEGORIES = [
     { value: 'medical', label: 'Medical' },
@@ -129,8 +138,24 @@ export function LeaveManager() {
         } catch (e: any) { toast.error('HOD approval failed: ' + e.message) }
     }
 
-    /** Principal Stage 2 — open sub dialog and finalize */
-    const handleOpenPrincipalApprove = async (leave: any) => {
+    /** Principal Stage 2 — directly approve, show toast, and come back */
+    const handlePrincipalApprove = async (leave: any) => {
+        try {
+            await approveLeaveStage2(leave.id, session?.user?.id || '')
+            logAction('Leave Final Approved', 'leave', `Principal approved leave for ${leave.profiles?.full_name}`, {
+                leaveId: leave.id,
+            })
+            toast.success(`Leave approved for ${leave.profiles?.full_name || 'faculty'}!`, {
+                description: `${leave.start_date} to ${leave.end_date}`,
+                duration: 4000,
+            })
+            loadLeaves()
+            loadAllLeaves()
+        } catch (e: any) { toast.error('Error approving: ' + e.message) }
+    }
+
+    /** Open sub dialog for an APPROVED leave so HOD can manage substitutions */
+    const handleOpenSubDialog = async (leave: any) => {
         setSelectedLeave(leave)
         try {
             const start = parseISO(leave.start_date)
@@ -141,7 +166,7 @@ export function LeaveManager() {
             const derivedClasses: any[] = []
             dates.forEach(d => {
                 const dayOfWeek = d.getDay()
-                if (dayOfWeek === 0) return // Skip Sunday
+                if (dayOfWeek === 0) return
                 const slotsForDay = timetable.filter((t: any) => t.day_of_week === dayOfWeek)
                 slotsForDay.forEach((slot: any) => {
                     derivedClasses.push({
@@ -164,7 +189,7 @@ export function LeaveManager() {
         } catch (e: any) { toast.error('Error loading classes: ' + e.message) }
     }
 
-    const handleConfirmFinalApproval = async () => {
+    const handleConfirmSubAssignments = async () => {
         if (!selectedLeave) return
         try {
             for (const cls of missingClasses) {
@@ -176,16 +201,14 @@ export function LeaveManager() {
                     )
                 }
             }
-
-            await approveLeaveStage2(selectedLeave.id, session?.user?.id || '')
-            logAction('Leave Final Approved', 'leave', `Principal approved leave for ${selectedLeave.profiles?.full_name}`, {
+            logAction('Substitutes Assigned', 'leave', `Assigned substitutes for ${selectedLeave.profiles?.full_name}`, {
                 leaveId: selectedLeave.id,
                 subsAssigned: Object.keys(subAssignments).length,
             })
-            toast.success('Leave fully approved!')
+            toast.success('Substitutes assigned!')
             setSubDialogOpen(false)
             loadLeaves()
-        } catch (e: any) { toast.error('Error finalizing: ' + e.message) }
+        } catch (e: any) { toast.error('Error assigning: ' + e.message) }
     }
 
     /** Route action based on status + role */
@@ -194,7 +217,7 @@ export function LeaveManager() {
             return handleHodApprove(leave)
         }
         if (leave.status === 'pending_principal') {
-            return handleOpenPrincipalApprove(leave)
+            return handlePrincipalApprove(leave)
         }
     }
 
@@ -210,10 +233,12 @@ export function LeaveManager() {
 
     /** Button label based on status + role */
     const getApproveLabel = (leave: any) => {
+        const dynamicStatus = getDynamicStatus(leave);
+        if (dynamicStatus === 'expired') return 'Action Unavailable';
         if (isHodPending(leave.status)) {
             return 'Forward to Principal'
         }
-        return 'Approve & Cover'
+        return 'Approve'
     }
 
     // ─── Tab state ───
@@ -229,15 +254,28 @@ export function LeaveManager() {
     const [studentLeaveSearch, setStudentLeaveSearch] = useState('')
     const [studentDialogSearch, setStudentDialogSearch] = useState('')
 
+    // Student leave CRUD: only HOD, admin, developer can add/approve/reject/delete. Others view only.
+    const canCrudStudentLeaves = ['hod', 'admin', 'developer'].includes(permissions.userRole || '');
+
     // Fetch student leaves
     const loadStudentLeaves = async () => {
         setStudentLeaveLoading(true)
-        let query = supabase.from('student_leaves').select('*, students(full_name, roll_no, dept, year, section)').order('created_at', { ascending: false })
+        // Ensure the postgREST query works even if the relation name is just "students"
+        let query = supabase.from('student_leaves')
+            .select(`
+                *,
+                students (full_name, roll_no, dept, year, section)
+            `)
+            .order('created_at', { ascending: false })
+            
         if (studentLeaveFilter.status !== 'All') query = query.eq('status', studentLeaveFilter.status)
         if (studentLeaveFilter.category !== 'All') query = query.eq('reason_category', studentLeaveFilter.category)
         const { data, error } = await query
-        if (error) toast.error(error.message)
-        else {
+        if (error) {
+             // Fallback if relation mapping differs
+             console.error("Join failed on student_leaves:", error);
+             toast.error(error.message);
+        } else {
             let filtered = data || []
             if (studentLeaveFilter.dept !== 'All') filtered = filtered.filter((l: any) => l.students?.dept === studentLeaveFilter.dept)
             if (studentLeaveFilter.year !== 'All') filtered = filtered.filter((l: any) => l.students?.year === parseInt(studentLeaveFilter.year))
@@ -381,8 +419,9 @@ export function LeaveManager() {
             ) : (
                 <div className="grid gap-4">
                     {leaves.map((leave, i) => {
-                        const statusInfo = getStatusInfo(leave.status)
-                        const actionable = canActOn(leave)
+                        const dynamicStatusText = getDynamicStatus(leave);
+                        const statusInfo = getStatusInfo(dynamicStatusText)
+                        const actionable = canActOn(leave) && dynamicStatusText !== 'expired';
                         return (
                             <Card key={i} className="flex flex-col md:flex-row justify-between border shadow-sm premium-glow">
                                 <CardHeader className="flex-1">
@@ -439,10 +478,15 @@ export function LeaveManager() {
                                         </Button>
                                     </CardFooter>
                                 ) : (
-                                    <CardFooter className="flex items-center justify-center p-6 bg-muted/10 border-l min-w-[160px]">
+                                    <CardFooter className="flex md:flex-col items-center justify-center gap-2 p-6 bg-muted/10 border-l min-w-[160px]">
                                         <div className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${statusInfo.bg} ${statusInfo.color} text-center`}>
                                             {statusInfo.label}
                                         </div>
+                                        {(dynamicStatusText === 'approved' || dynamicStatusText === 'accepted') && (permissions.canApproveLeaveStage1 || permissions.canApproveLeaveStage2) && new Date(leave.end_date) >= new Date(new Date().toDateString()) && (
+                                            <Button size="sm" variant="outline" className="text-xs w-full" onClick={() => handleOpenSubDialog(leave)}>
+                                                Manage Subs
+                                            </Button>
+                                        )}
                                     </CardFooter>
                                 )}
                             </Card>
@@ -451,13 +495,13 @@ export function LeaveManager() {
                 </div>
             )}
 
-            {/* Cover Faculty Dialog (Stage 2) */}
+            {/* Sub Assignment Dialog (accessible for approved leaves) */}
             <Dialog open={subDialogOpen} onOpenChange={setSubDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Approve Leave & Assign Cover Faculty</DialogTitle>
+                        <DialogTitle>Assign Substitute Faculty</DialogTitle>
                         <DialogDescription>
-                            Assign alternative faculty to cover classes during the leave period. You may skip classes if no cover is needed.
+                            Assign cover faculty for classes during the leave period. Skip classes that don't need cover.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -500,9 +544,9 @@ export function LeaveManager() {
 
                     <DialogFooter className="mt-4">
                         <Button variant="outline" onClick={() => setSubDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleConfirmFinalApproval} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+                        <Button onClick={handleConfirmSubAssignments} className="bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
                             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                            Confirm & Approve Leave
+                            Assign Substitutes
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -544,9 +588,11 @@ export function LeaveManager() {
                             <SelectContent><SelectItem value="All">All</SelectItem>{REASON_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
                         </Select>
                         <div className="ml-auto">
+                            {canCrudStudentLeaves && (
                             <Button size="sm" onClick={() => setShowAddStudentLeave(true)} className="gap-1">
                                 <Plus className="h-4 w-4" /> Add Leave
                             </Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -568,7 +614,10 @@ export function LeaveManager() {
                                         <div>
                                             <CardTitle className="text-base flex items-center gap-2">
                                                 {sl.students?.full_name || 'Unknown'}
-                                                <span className="text-xs font-mono text-muted-foreground">{sl.students?.roll_no}</span>
+                                                <span className="text-xs font-mono text-muted-foreground">
+                                                    {sl.students?.roll_no}
+                                                    {sl.students?.is_le && <span className="ml-1.5 px-0.5 py-[1px] rounded-[3px] font-black bg-primary/20 text-primary uppercase tracking-widest text-[8px]">LE</span>}
+                                                </span>
                                                 <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground border">
                                                     {sl.students?.dept}-Y{sl.students?.year}-{sl.students?.section}
                                                 </span>
@@ -593,6 +642,7 @@ export function LeaveManager() {
                                             }`}>
                                                 {sl.status === 'approved' ? 'Approved' : sl.status === 'rejected' ? 'Rejected' : 'Pending'}
                                             </div>
+                                            {canCrudStudentLeaves && (
                                             <button
                                                 onClick={() => handleDeleteStudentLeave(sl.id)}
                                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
@@ -600,6 +650,7 @@ export function LeaveManager() {
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </button>
+                                            )}
                                         </div>
                                     </div>
                                     <p className="text-sm mt-2 pt-2 border-t">
@@ -607,7 +658,7 @@ export function LeaveManager() {
                                         {sl.reason_text || 'No details provided.'}
                                     </p>
                                 </CardHeader>
-                                {sl.status === 'pending' && (permissions.canApproveLeaveStage1 || permissions.canApproveLeaveStage2) && (
+                                {sl.status === 'pending' && canCrudStudentLeaves && (
                                     <CardFooter className="flex md:flex-col justify-end gap-2 p-4 bg-muted/20 border-l">
                                         <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'approved')} className="bg-emerald-600 hover:bg-emerald-700 w-full">Approve</Button>
                                         <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'rejected')} variant="destructive" className="w-full">Reject</Button>
@@ -641,7 +692,7 @@ export function LeaveManager() {
                                     <SelectTrigger><SelectValue placeholder="Select Student..." /></SelectTrigger>
                                     <SelectContent className="max-h-60">
                                         {filteredStudentsList.map(s => (
-                                            <SelectItem key={s.id} value={s.id}>{s.full_name} ({s.roll_no}) — {s.dept}-Y{s.year}-{s.section}</SelectItem>
+                                            <SelectItem key={s.id} value={s.id}>{s.full_name} ({s.roll_no}{s.is_le ? ' - LE' : ''}) — {s.dept}-Y{s.year}-{s.section}</SelectItem>
                                         ))}
                                         {filteredStudentsList.length === 0 && (
                                             <div className="px-4 py-3 text-xs text-muted-foreground text-center">No matching students found.</div>

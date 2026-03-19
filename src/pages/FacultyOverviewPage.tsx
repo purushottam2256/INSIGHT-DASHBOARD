@@ -5,9 +5,11 @@ import { useAuth } from '@/contexts/AuthContext'
 import { DEPARTMENTS } from '@/lib/constants'
 import {
   Search, UserCog, Clock, Loader2, Calendar, Mail, Building2,
-  Phone, BarChart3, BookOpen, Users, TrendingUp, Briefcase,
+  Phone, BarChart3, BookOpen, Users, TrendingUp, Briefcase, LogIn,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { format, subDays } from 'date-fns'
 
 interface FacultyDetail {
   id: string; full_name: string; email: string; dept: string; role: string;
@@ -31,11 +33,12 @@ const FacultyOverviewPage = () => {
   const [selected, setSelected] = useState<FacultyDetail | null>(null)
   const [timetable, setTimetable] = useState<TimetableEntry[]>([])
   const [perfStats, setPerfStats] = useState<AttendancePerf | null>(null)
+  const [loginData, setLoginData] = useState<{name: string; count: number}[]>([])
   const [search, setSearch] = useState('')
   const [filterDept, setFilterDept] = useState(profile?.dept || '')
   const [loading, setLoading] = useState(true)
 
-  const isElevated = ['principal', 'management', 'developer', 'admin'].includes(profile?.role || '')
+  const isElevated = ['principal', 'management', 'developer'].includes(profile?.role || '')
 
   useEffect(() => {
     fetchFaculty()
@@ -114,7 +117,25 @@ const FacultyOverviewPage = () => {
     return matchSearch && matchDept
   }), [faculty, search, filterDept])
 
-  const selectFaculty = (f: FacultyDetail) => { setSelected(f); loadTimetable(f.id); loadPerformance(f.id) }
+  const selectFaculty = (f: FacultyDetail) => { setSelected(f); loadTimetable(f.id); loadPerformance(f.id); loadLoginActivity(f.id) }
+
+  const loadLoginActivity = async (fid: string) => {
+    try {
+      const days: { name: string; count: number }[] = []
+      for (let i = 29; i >= 0; i--) {
+        days.push({ name: format(subDays(new Date(), i), 'dd'), count: 0 })
+      }
+      const startDate = format(subDays(new Date(), 29), 'yyyy-MM-dd')
+      const { data: logs } = await supabase.from('faculty_attendance_logs').select('date').eq('faculty_id', fid).gte('date', startDate)
+      if (logs) {
+        logs.forEach(log => {
+          const idx = days.findIndex(d => d.name === format(new Date(log.date), 'dd'))
+          if (idx !== -1) days[idx].count++
+        })
+      }
+      setLoginData(days)
+    } catch { setLoginData([]) }
+  }
 
   const getEntry = (day: number, period: number) => timetable.find(t => t.day_of_week === day && t.period === period)
 
@@ -277,6 +298,30 @@ const FacultyOverviewPage = () => {
                         <p className="text-muted-foreground font-bold uppercase text-[9px] tracking-wider">Total Present</p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Login Activity Chart */}
+              {loginData.length > 0 && (
+                <div className="border border-border/40 rounded-2xl bg-card shadow-sm p-5">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <LogIn className="h-4 w-4 text-primary" />
+                    Login Activity (30 Days)
+                  </h3>
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={loginData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
+                        <RechartsTooltip
+                          cursor={{ fill: 'hsl(var(--muted)/0.2)' }}
+                          contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))', fontWeight: 'bold', fontSize: '11px' }}
+                        />
+                        <Bar dataKey="count" name="Logins" fill="hsl(var(--primary))" radius={[3,3,0,0]} maxBarSize={12} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               )}

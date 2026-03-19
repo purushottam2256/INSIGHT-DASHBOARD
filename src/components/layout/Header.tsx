@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Search, Moon, Sun, Menu, X, Loader2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, Moon, Sun, Menu, X, Loader2, ScanLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ const pageTitles: Record<string, { title: string; subtitle?: string }> = {
     '/student-overview': { title: 'Student Overview', subtitle: 'Individual Analytics' },
     '/faculty-overview': { title: 'Faculty Overview', subtitle: 'Performance & Details' },
     '/complaints': { title: 'Complaints & Suggestions', subtitle: 'Student Feedback' },
+    '/faculty-logs': { title: 'Faculty Logs', subtitle: 'Login & Attendance History' },
 };
 
 interface HeaderProps {
@@ -39,6 +40,7 @@ interface HeaderProps {
 const Header = ({ onMenuClick, userName }: HeaderProps) => {
     const { theme, setTheme } = useTheme();
     const location = useLocation();
+    const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
     const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -48,7 +50,7 @@ const Header = ({ onMenuClick, userName }: HeaderProps) => {
     const { results, loading: searchLoading } = useSearch(query);
 
     const currentPage = pageTitles[location.pathname] || { title: 'Dashboard', subtitle: 'Overview' };
-    const firstName = userName ? userName.split(' ')[0] : 'User';
+    const displayName = userName || 'User';
 
     // Close search results when clicking outside
     useEffect(() => {
@@ -107,7 +109,7 @@ const Header = ({ onMenuClick, userName }: HeaderProps) => {
                             animate={{ opacity: 1, y: 0 }} 
                             className="text-[26px] tracking-tight font-outfit text-foreground font-semibold flex items-center gap-2.5"
                         >
-                            Welcome, <span className="font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-primary to-amber-500">{firstName}!</span> <span className="text-[26px] drop-shadow-sm origin-bottom hover:rotate-12 transition-transform cursor-default">👋</span>
+                            Welcome, <span className="font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-primary to-amber-500">{displayName}!</span> <span className="text-[26px] drop-shadow-sm origin-bottom hover:rotate-12 transition-transform cursor-default">👋</span>
                         </motion.h1>
                     ) : (
                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
@@ -224,6 +226,17 @@ const Header = ({ onMenuClick, userName }: HeaderProps) => {
                         <Moon size={15} strokeWidth={theme === 'dark' ? 2.5 : 2} />
                     </Button>
                 </div>
+
+                {/* QR Scanner Quick Access */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-full hover:bg-primary/10 hover:text-primary transition-all border border-transparent hover:border-primary/20 bg-secondary/40 flex-shrink-0"
+                    onClick={() => navigate('/scanner', { state: { from: 'dashboard' } })}
+                    title="Open QR Scanner"
+                >
+                    <ScanLine className="h-[18px] w-[18px]" />
+                </Button>
             </div>
 
             {/* Mobile Search Overlay */}

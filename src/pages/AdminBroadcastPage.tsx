@@ -84,7 +84,7 @@ export default function AdminBroadcastPage() {
 
   // Faculty picker
   const [facultyList, setFacultyList] = useState<{id: string; full_name: string; dept: string}[]>([]);
-  const [selectedFacultyId, setSelectedFacultyId] = useState('');
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
   const [facultySearch, setFacultySearch] = useState('');
 
   // Filters  
@@ -144,21 +144,30 @@ export default function AdminBroadcastPage() {
   };
 
   const loadFaculty = async () => {
-    let query = supabase.from('profiles').select('id, full_name, dept').in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']).order('full_name');
-    if (isHod && hodDept) query = query.eq('dept', hodDept);
-    const { data } = await query;
-    setFacultyList(data || []);
+    try {
+      let query = supabase.from('profiles').select('id, full_name, dept, role').in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']).order('full_name');
+      if (isHod && hodDept) query = query.eq('dept', hodDept);
+      const { data, error } = await query;
+      if (error) {
+        console.error("Faculty fetch error:", error.message);
+        toast.error("Failed to load faculty: " + error.message);
+        return;
+      }
+      setFacultyList((data || []) as any);
+    } catch (err: any) {
+      console.error("Unexpected faculty fetch error:", err);
+    }
   };
 
   // ── Send broadcast ────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!title.trim() || !message.trim()) { toast.error('Title and message are required'); return; }
-    if (audience === 'specific_faculty' && !selectedFacultyId) { toast.error('Select a faculty member'); return; }
+    if (audience === 'specific_faculty' && selectedFacultyIds.length === 0) { toast.error('Select at least one faculty member'); return; }
 
     setSending(true);
     try {
       let query = supabase.from('profiles').select('id, push_token, full_name');
-      if (audience === 'specific_faculty') query = query.eq('id', selectedFacultyId);
+      if (audience === 'specific_faculty') query = query.in('id', selectedFacultyIds);
       else if (audience === 'hods') query = query.eq('role', 'hod');
       else if (audience === 'faculty') query = query.in('role', ['faculty', 'class_incharge', 'lab_incharge']);
       else if (audience !== 'all') query = query.eq('dept', audience).in('role', ['faculty', 'class_incharge', 'lab_incharge', 'hod']);
@@ -168,8 +177,8 @@ export default function AdminBroadcastPage() {
       if (targetErr) throw targetErr;
       if (!targets?.length) { toast.error('No faculty found for this audience.'); setSending(false); return; }
 
-      const selectedFac = audience === 'specific_faculty' ? facultyList.find(f => f.id === selectedFacultyId) : null;
-      const audienceLabel = audience === 'specific_faculty' && selectedFac ? `Faculty: ${selectedFac.full_name}` : audience;
+      const selectedNames = audience === 'specific_faculty' ? facultyList.filter(f => selectedFacultyIds.includes(f.id)).map(f => f.full_name).join(', ') : null;
+      const audienceLabel = audience === 'specific_faculty' && selectedNames ? `Faculty: ${selectedNames}` : audience;
 
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData.user?.id || null;
@@ -210,7 +219,7 @@ export default function AdminBroadcastPage() {
   const resetCompose = () => {
     setTitle(''); setMessage(''); setPriority('normal'); setCategory('general');
     setAudience(isHod && hodDept ? hodDept : 'all');
-    setShowCompose(false); setSelectedFacultyId(''); setFacultySearch('');
+    setShowCompose(false); setSelectedFacultyIds([]); setFacultySearch('');
   };
 
   const applyTemplate = (t: typeof TEMPLATES[0]) => {
@@ -317,7 +326,7 @@ export default function AdminBroadcastPage() {
                 <option value="urgent">🔴 Urgent</option>
               </select>
               <select
-                value={audience} onChange={e => { setAudience(e.target.value); setSelectedFacultyId(''); setFacultySearch(''); }}
+                value={audience} onChange={e => { setAudience(e.target.value); setSelectedFacultyIds([]); setFacultySearch(''); }}
                 className="px-3 py-2.5 rounded-xl border border-border/40 bg-secondary/20 text-xs font-medium focus:ring-2 focus:ring-primary/20 outline-none">
                 {isHod && hodDept ? (
                   <><option value={hodDept}>{hodDept.toUpperCase()} Dept</option><option value="specific_faculty">👤 Faculty</option></>
@@ -336,6 +345,20 @@ export default function AdminBroadcastPage() {
             {/* Faculty Picker — only if specific faculty is selected */}
             {audience === 'specific_faculty' && (
               <div className="rounded-xl bg-secondary/20 border border-border/30 p-3 space-y-2">
+                {/* Selected chips */}
+                {selectedFacultyIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pb-2">
+                    {selectedFacultyIds.map(id => {
+                      const f = facultyList.find(x => x.id === id);
+                      return f ? (
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                          {f.full_name}
+                          <button onClick={() => setSelectedFacultyIds(prev => prev.filter(x => x !== id))} className="hover:text-destructive ml-0.5">×</button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                   <input value={facultySearch} onChange={(e) => setFacultySearch(e.target.value)} placeholder="Search faculty..."
@@ -343,16 +366,24 @@ export default function AdminBroadcastPage() {
                   />
                 </div>
                 <div className="max-h-36 overflow-y-auto rounded-lg divide-y divide-border/20">
-                  {facultyList.filter(f => !facultySearch.trim() || f.full_name.toLowerCase().includes(facultySearch.toLowerCase())).map(f => (
-                    <button key={f.id} onClick={() => setSelectedFacultyId(f.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-all ${selectedFacultyId === f.id ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-muted/50'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${selectedFacultyId === f.id ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}>
-                        {f.full_name.charAt(0)}
+                  {facultyList.filter(f => !facultySearch.trim() || (f.full_name || '').toLowerCase().includes(facultySearch.toLowerCase())).map(f => {
+                    const isSelected = selectedFacultyIds.includes(f.id);
+                    const classTag = (f as any).role === 'class_incharge' && (f as any).dept && (f as any).year && (f as any).section
+                      ? `${(f as any).dept.toUpperCase()} Y${(f as any).year}-${(f as any).section}` : null;
+                    return (
+                    <button key={f.id} onClick={() => {
+                      setSelectedFacultyIds(prev => isSelected ? prev.filter(x => x !== f.id) : [...prev, f.id]);
+                    }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-all ${isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-muted/50'}`}>
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-primary border-primary text-white' : 'border-border'}`}>
+                        {isSelected && <span className="text-[9px]">✓</span>}
                       </div>
-                      <span className="truncate">{f.full_name}</span>
+                      <span className="truncate">{f.full_name || 'Unnamed Faculty'}</span>
+                      {classTag && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-bold ml-auto shrink-0">{classTag}</span>}
                       <span className="text-[9px] text-muted-foreground ml-auto">{f.dept}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

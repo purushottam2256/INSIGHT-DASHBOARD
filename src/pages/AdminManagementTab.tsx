@@ -109,6 +109,10 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
     }
 
     const handleDelete = async (admin: AdminProfile) => {
+        if (admin.role === 'developer' && !isDeveloper) {
+            toast.error("Permission Denied: Only Developers can delete Developer accounts");
+            return;
+        }
         if (!confirm(`Are you sure you want to completely delete ${admin.full_name}?`)) return
         
         try {
@@ -286,12 +290,16 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
                                             {admin.role.replace('_', ' ')}
                                         </span>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary bg-background shadow-xs hover:bg-primary/10" onClick={() => handleOpenEdit(admin)}>
-                                                <Edit2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive bg-background shadow-xs hover:bg-destructive/10" onClick={() => handleDelete(admin)}>
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
+                                            {!(admin.role === 'developer' && !isDeveloper) && (
+                                                <>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary bg-background shadow-xs hover:bg-primary/10" onClick={() => handleOpenEdit(admin)}>
+                                                        <Edit2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive bg-background shadow-xs hover:bg-destructive/10" onClick={() => handleDelete(admin)}>
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     

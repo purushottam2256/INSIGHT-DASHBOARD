@@ -111,7 +111,12 @@ export default {
             "float": {
                 "0%, 100%": { transform: "translateY(0)" },
                 "50%": { transform: "translateY(-10px)" },
-            }
+            },
+            "scan-laser": {
+                "0%": { top: "0%" },
+                "50%": { top: "100%" },
+                "100%": { top: "0%" },
+            },
         },
         animation: {
             "fade-in": "fade-in 0.5s ease-out forwards",
@@ -122,6 +127,7 @@ export default {
             "twinkle": "twinkle 3s ease-in-out infinite",
             "meteor": "meteor 5s linear infinite",
             "float": "float 6s ease-in-out infinite",
+            "scan-laser": "scan-laser 2.5s ease-in-out infinite",
         },
   	},
   },

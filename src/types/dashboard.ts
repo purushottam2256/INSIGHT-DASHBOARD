@@ -2,7 +2,7 @@ export interface DashboardProfile {
   id: string;
   email: string;
   full_name: string;
-  role: 'faculty' | 'hod' | 'principal' | 'management' | 'admin';
+  role: 'developer' | 'hod' | 'principal' | 'management';
   dept?: string;
   avatar_url?: string;
 }

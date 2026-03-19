@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,6 +11,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart3, PieChart as PieChartIcon } from 'lucide-react'
 import { ClassSession } from '@/types/dashboard';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 
 interface DashboardChartsProps {
     todayClasses: ClassSession[];
@@ -148,11 +150,23 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
     }
 
     if (type === "dept-bar") {
+        const [drilledDept, setDrilledDept] = useState<string | null>(null);
+
         const deptData = useMemo(() => {
-            const map = new Map<string, { dept: string; present: number; absent: number; od: number; total: number }>();
+            const map = new Map<string, { name: string; present: number; absent: number; od: number; total: number }>();
+            
             todayClasses.forEach(c => {
-                const key = c.target_dept || 'Unknown';
-                if (!map.has(key)) map.set(key, { dept: key, present: 0, absent: 0, od: 0, total: 0 });
+                if (drilledDept && c.target_dept !== drilledDept) return; // drill-down constraint
+                
+                let key = c.target_dept || 'Unknown';
+                let name = key;
+
+                if (drilledDept) {
+                    key = `${c.target_year}-${c.target_section}`.toLowerCase();
+                    name = `Y${c.target_year} - ${c.target_section}`;
+                }
+
+                if (!map.has(key)) map.set(key, { name, present: 0, absent: 0, od: 0, total: 0 });
                 const entry = map.get(key)!;
                 entry.present += c.present_count || 0;
                 entry.absent += c.absent_count || 0;
@@ -160,7 +174,7 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
                 entry.total += c.total_students || 0;
             });
             return Array.from(map.values()).sort((a, b) => b.total - a.total);
-        }, [todayClasses]);
+        }, [todayClasses, drilledDept]);
         
         return (
             <Card className="bg-card/60 backdrop-blur-xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] h-full overflow-hidden rounded-[1.5rem] transition-all duration-300">
@@ -169,7 +183,19 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
                         <div className="p-1.5 rounded-[10px] bg-primary/10 dark:bg-primary/15 text-primary ring-1 ring-primary/20">
                             <BarChart3 className="h-4 w-4" />
                         </div>
-                        {title || "Department Breakdown"}
+                        <div className="flex-1">
+                            {drilledDept ? `Sections in ${drilledDept}` : (title || "Department Breakdown")}
+                        </div>
+                        {drilledDept && (
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setDrilledDept(null)}
+                                className="h-7 text-xs font-bold bg-secondary hover:bg-muted ml-auto"
+                            >
+                                <ArrowLeft className="h-3 w-3 mr-1" /> Back
+                            </Button>
+                        )}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pl-0 pb-4 h-[250px] md:h-[300px] pt-4">
@@ -182,13 +208,37 @@ export function DashboardCharts({ todayClasses, type, title }: DashboardChartsPr
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart layout="vertical" data={deptData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                                 <XAxis type="number" hide />
-                                <YAxis dataKey="dept" type="category" axisLine={false} tickLine={false} width={70}
+                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={85}
                                     tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} />
                                 <Tooltip cursor={{ fill: 'var(--muted)', opacity: 0.4, rx: 8 }} content={<PremiumTooltip />} />
                                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', fontWeight: 600, paddingTop: '16px' }} />
-                                <Bar dataKey="present" name="Present" fill={PREMIUM_COLORS.present} radius={[0, 4, 4, 0]} barSize={12} />
-                                <Bar dataKey="od" name="OD" fill={PREMIUM_COLORS.od} radius={[0, 4, 4, 0]} barSize={12} />
-                                <Bar dataKey="absent" name="Absent" fill={PREMIUM_COLORS.absent} radius={[0, 4, 4, 0]} barSize={12} />
+                                <Bar 
+                                    dataKey="present" 
+                                    name="Present" 
+                                    fill={PREMIUM_COLORS.present} 
+                                    radius={[0, 4, 4, 0]} 
+                                    barSize={12} 
+                                    onClick={(data) => !drilledDept && setDrilledDept(data.name)}
+                                    className={!drilledDept ? "cursor-pointer transition-opacity hover:opacity-80" : ""}
+                                />
+                                <Bar 
+                                    dataKey="od" 
+                                    name="OD" 
+                                    fill={PREMIUM_COLORS.od} 
+                                    radius={[0, 4, 4, 0]} 
+                                    barSize={12} 
+                                    onClick={(data) => !drilledDept && setDrilledDept(data.name)}
+                                    className={!drilledDept ? "cursor-pointer transition-opacity hover:opacity-80" : ""}
+                                />
+                                <Bar 
+                                    dataKey="absent" 
+                                    name="Absent" 
+                                    fill={PREMIUM_COLORS.absent} 
+                                    radius={[0, 4, 4, 0]} 
+                                    barSize={12} 
+                                    onClick={(data) => !drilledDept && setDrilledDept(data.name)}
+                                    className={!drilledDept ? "cursor-pointer transition-opacity hover:opacity-80" : ""}
+                                />
                             </BarChart>
                         </ResponsiveContainer>
                     )}

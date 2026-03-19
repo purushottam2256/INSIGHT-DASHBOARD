@@ -115,7 +115,7 @@ export default function SemesterUpgrader() {
 
       setState((prev) => ({ ...prev, semester: newSemester }));
       setStep('done');
-      toast.success(`Semester upgraded: ${state.semester} → ${newSemester}`);
+      toast.success(`Semester flipped: ${state.semester} → ${newSemester}`);
     } catch (err: any) {
       toast.error('Semester upgrade failed: ' + err.message);
     } finally {
@@ -196,7 +196,7 @@ export default function SemesterUpgrader() {
         totalStudents: prev.totalStudents - (prev.yearCounts[4] || 0),
       }));
       setStep('done');
-      toast.success(`Year upgrade complete! ${state.yearCounts[4]} students graduated.`);
+      toast.success(`Year upgraded! ${state.yearCounts[4]} students graduated. Semester reset to 1.`);
     } catch (err: any) {
       toast.error('Year upgrade failed: ' + err.message);
     } finally {
@@ -303,7 +303,7 @@ export default function SemesterUpgrader() {
               <h3 className="font-bold text-lg">Semester Flip</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Semester {state.semester} → {state.semester === '1' ? '2' : '1'}
+              Semester {state.semester} → {state.semester === '1' ? '2' : '1'} (e.g. 4-1 → 4-2)
             </p>
             <p className="text-xs text-muted-foreground">
               Only changes the active semester config. No student data is modified.
@@ -313,7 +313,7 @@ export default function SemesterUpgrader() {
                 onClick={() => { setUpgradeType('semester'); setStep('preview'); setConfirmText(''); }}
                 className="w-full mt-2 px-4 py-2 bg-red-500/10 text-red-500 rounded-lg text-sm font-medium hover:bg-red-500/20 border border-red-500/20 transition-colors"
               >
-                Begin Semester Upgrade
+                Begin Semester Flip
               </button>
             )}
           </div>
@@ -352,12 +352,12 @@ export default function SemesterUpgrader() {
               <AlertTriangle className="h-6 w-6 text-red-500 shrink-0 animate-bounce-subtle" />
               <div>
                 <h3 className="font-bold text-lg text-red-500">
-                  {upgradeType === 'semester' ? 'Semester Upgrade Confirmation' : 'Year Upgrade Confirmation'}
+                  {upgradeType === 'semester' ? 'Semester Flip Confirmation' : 'Year Upgrade Confirmation'}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   {upgradeType === 'semester'
-                    ? `This will change the active semester from ${state.semester} to ${state.semester === '1' ? '2' : '1'} for the entire institution.`
-                    : `This will promote ALL students by one year, deactivate ${state.yearCounts[4]} 4th-year students (graduated), reset semester to 1, and update the academic year.`}
+                    ? `This will flip the active semester from ${state.semester} to ${state.semester === '1' ? '2' : '1'} for the entire institution (e.g. 4-1 to 4-2).`
+                    : `This will promote ALL students by one year, deactivate ${state.yearCounts[4] || 0} 4th-year students (graduated), reset semester to 1 (e.g. 3-2 to 4-1), and update the academic year.`}
                 </p>
               </div>
             </div>
@@ -395,7 +395,7 @@ export default function SemesterUpgrader() {
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <AlertTriangle className="h-4 w-4" />
-                    Execute {upgradeType === 'semester' ? 'Semester' : 'Year'} Upgrade
+                    Execute {upgradeType === 'semester' ? 'Semester Flip' : 'Year Upgrade'}
                   </span>
                 )}
               </button>

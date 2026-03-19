@@ -7,6 +7,7 @@ import { Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useAutoEscalation } from '@/hooks/useAutoEscalation';
+import { NetworkStatus } from '@/components/NetworkStatus';
 
 interface DashboardShellProps {
     children?: React.ReactNode;
@@ -67,9 +68,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
                     </div>
                 </main>
             </div>
-
             {/* Command Palette (Ctrl+K) */}
             <CommandPalette />
+
+            {/* Global Network Connectivity Indicator */}
+            <NetworkStatus />
         </div>
     );
 };

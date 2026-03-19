@@ -111,8 +111,8 @@ const DashboardHome = () => {
                 <div className="lg:col-span-1 animate-fade-in animate-fade-in-delay-3">
                     <DashboardCharts 
                         todayClasses={todayClasses} 
-                        type="attendance-donut" 
-                        title="Today's Overview" 
+                        type="dept-bar" 
+                        title="Campus Breakdown" 
                     />
                 </div>
                 

@@ -254,7 +254,10 @@ export function AttendanceManager() {
                                     return (
                                     <tr key={student.id} className="hover:bg-muted/20 transition-colors">
                                         <td className="p-4 text-muted-foreground text-xs">{idx + 1}</td>
-                                        <td className="p-4 font-mono font-medium">{student.roll_no}</td>
+                                        <td className="p-4 font-mono font-medium">
+                                            {student.roll_no}
+                                            {student.is_le && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] font-black bg-primary/15 text-primary uppercase tracking-widest">LE</span>}
+                                        </td>
                                         <td className="p-4 font-medium">{student.full_name}</td>
                                         
                                         {uniqueDates.map(dateStr => {

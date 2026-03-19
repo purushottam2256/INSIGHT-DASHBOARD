@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { 
-    FileSpreadsheet, Download, Filter, Users,
+    FileSpreadsheet, Download, Filter, Users, UserCheck,
     BarChart3, Loader2, Printer, Search, RotateCcw, Briefcase, Trophy
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +57,16 @@ interface LeaveRow {
     pending: number;
 }
 
+interface StudentAttRow {
+    roll_no: string;
+    full_name: string;
+    is_le?: boolean;
+    dateValues: Record<string, 'P' | 'A' | 'OD' | '-'>;
+    presentCount: number;
+    totalCount: number;
+    percentage: number;
+}
+
 export function ReportsPage() {
     const { role, dept: userDept } = useUserRole();
     const [reportType, setReportType] = useState<ReportType>('attendance');
@@ -84,7 +94,13 @@ export function ReportsPage() {
     const [workloadData, setWorkloadData] = useState<WorkloadRow[]>([]);
     const [performanceData, setPerformanceData] = useState<PerformanceRow[]>([]);
 
-    const isDeptLocked = !['principal', 'management', 'developer', 'admin'].includes(role || '');
+    const isDeptLocked = !['principal', 'management', 'developer'].includes(role || '');
+
+    // Student-level drill-down
+    const [studentData, setStudentData] = useState<StudentAttRow[]>([]);
+    const [studentDates, setStudentDates] = useState<string[]>([]);
+    const [showStudentView, setShowStudentView] = useState(false);
+    const [studentLoading, setStudentLoading] = useState(false);
 
     const filteredDepartments = useMemo(() => {
         if (isDeptLocked && userDept) {
@@ -273,6 +289,100 @@ export function ReportsPage() {
         }
     };
 
+    // Student-level drill-down
+    const loadStudentAttendance = async () => {
+        if (dept === 'all' || year === 'all' || section === 'all') {
+            toast.error('Select a specific Dept, Year, and Section for student-level view');
+            return;
+        }
+        setStudentLoading(true);
+        try {
+            // 1. Get sessions for the selected class in the date range
+            const { data: sessions, error: sessErr } = await supabase
+                .from('attendance_sessions')
+                .select('id, date')
+                .eq('target_dept', dept)
+                .eq('target_year', parseInt(year))
+                .eq('target_section', section)
+                .gte('date', startDate)
+                .lte('date', endDate)
+                .order('date');
+            if (sessErr) throw sessErr;
+            if (!sessions || sessions.length === 0) { toast.info('No sessions found for this class'); setStudentLoading(false); return; }
+
+            const sessionIds = sessions.map(s => s.id);
+            const dates = [...new Set(sessions.map(s => s.date))].sort();
+            setStudentDates(dates);
+
+            // Map sessionId -> date
+            const sessionDateMap = new Map(sessions.map(s => [s.id, s.date]));
+
+            // 2. Get all logs for these sessions
+            const { data: logs, error: logErr } = await supabase
+                .from('attendance_logs')
+                .select('student_id, session_id, status')
+                .in('session_id', sessionIds);
+            if (logErr) throw logErr;
+
+            // 3. Get student info
+            const studentIds = [...new Set((logs || []).map(l => l.student_id))];
+            if (studentIds.length === 0) { toast.info('No attendance logs found'); setStudentLoading(false); return; }
+
+            const { data: studentsInfo } = await supabase
+                .from('students')
+                .select('id, roll_no, full_name, is_le')
+                .in('id', studentIds)
+                .order('roll_no');
+
+            const studentMap = new Map((studentsInfo || []).map(s => [s.id, s]));
+
+            // 4. Build per-student rows
+            const rowMap = new Map<string, StudentAttRow>();
+            for (const log of (logs || [])) {
+                const student = studentMap.get(log.student_id);
+                if (!student) continue;
+                const date = sessionDateMap.get(log.session_id) || '';
+                if (!rowMap.has(log.student_id)) {
+                    rowMap.set(log.student_id, {
+                        roll_no: student.roll_no,
+                        full_name: student.full_name,
+                        is_le: student.is_le,
+                        dateValues: {},
+                        presentCount: 0,
+                        totalCount: 0,
+                        percentage: 0,
+                    });
+                }
+                const row = rowMap.get(log.student_id)!;
+                const status = log.status === 'present' ? 'P' : log.status === 'od' ? 'OD' : 'A';
+                // Take best status per date (P > OD > A)
+                const existing = row.dateValues[date];
+                if (!existing || (status === 'P') || (status === 'OD' && existing === 'A')) {
+                    row.dateValues[date] = status;
+                }
+            }
+
+            // Fill missing dates and calc percentages
+            const rows = Array.from(rowMap.values());
+            for (const row of rows) {
+                for (const d of dates) {
+                    if (!row.dateValues[d]) row.dateValues[d] = '-';
+                    if (row.dateValues[d] === 'P' || row.dateValues[d] === 'OD') row.presentCount++;
+                    if (row.dateValues[d] !== '-') row.totalCount++;
+                }
+                row.percentage = row.totalCount > 0 ? Math.round((row.presentCount / row.totalCount) * 100) : 0;
+            }
+
+            rows.sort((a, b) => a.roll_no.localeCompare(b.roll_no));
+            setStudentData(rows);
+            setShowStudentView(true);
+        } catch (err: any) {
+            toast.error('Student drill-down failed: ' + err.message);
+        } finally {
+            setStudentLoading(false);
+        }
+    };
+
     const exportCSV = () => {
         let csv = '';
         let filename = '';
@@ -424,6 +534,17 @@ export function ReportsPage() {
                             <RotateCcw className="h-3.5 w-3.5" />
                             Reset
                         </Button>
+                        {reportType === 'attendance' && dept !== 'all' && year !== 'all' && section !== 'all' && (
+                            <Button
+                                variant="outline"
+                                onClick={loadStudentAttendance}
+                                disabled={studentLoading}
+                                className="h-9 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/5"
+                            >
+                                {studentLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                                Student View
+                            </Button>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -597,6 +718,65 @@ export function ReportsPage() {
                     <h3 className="text-lg font-semibold text-foreground mb-1">No Report Generated</h3>
                     <p className="text-sm">Select filters and click "Generate" to create a report.</p>
                 </div>
+            )}
+
+            {/* Student-Level Drill-Down */}
+            {showStudentView && studentData.length > 0 && (
+                <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
+                    <CardHeader className="pb-4 border-b border-border/30 bg-secondary/50 dark:bg-secondary/20 flex-row items-center justify-between">
+                        <CardTitle className="text-[15px] font-black tracking-tight flex items-center gap-2 text-foreground">
+                            <UserCheck className="h-4 w-4 text-primary" />
+                            Student Attendance — {dept}-{year}{section}
+                            <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold ml-2">
+                                {studentData.length} students × {studentDates.length} days
+                            </span>
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" onClick={() => setShowStudentView(false)} className="text-xs">
+                            Close
+                        </Button>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                            <table className="w-full text-xs">
+                                <thead className="sticky top-0 z-10">
+                                    <tr className="bg-muted/30 border-b border-border/30">
+                                        <th className="px-3 py-2.5 text-left font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/30 z-10 min-w-[90px]">Roll No</th>
+                                        <th className="px-3 py-2.5 text-left font-bold text-muted-foreground uppercase tracking-wider min-w-[120px]">Name</th>
+                                        {studentDates.map(d => (
+                                            <th key={d} className="px-2 py-2.5 text-center font-bold text-muted-foreground uppercase tracking-wider min-w-[45px]">
+                                                {format(new Date(d), 'dd/MM')}
+                                            </th>
+                                        ))}
+                                        <th className="px-3 py-2.5 text-center font-bold text-primary uppercase tracking-wider min-w-[50px] bg-primary/5">%</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {studentData.map((row, i) => (
+                                        <tr key={i} className="border-b border-border/10 hover:bg-accent/20 transition-colors">
+                                            <td className="px-3 py-2 font-mono text-[11px] font-bold text-foreground sticky left-0 bg-card z-10 border-r border-border/20">
+                                                {row.roll_no}
+                                                {row.is_le && <span className="ml-1.5 px-0.5 py-[1px] rounded-[3px] text-[8px] font-black bg-primary/15 text-primary uppercase tracking-widest">LE</span>}
+                                            </td>
+                                            <td className="px-3 py-2 text-foreground font-medium truncate max-w-[160px]">{row.full_name}</td>
+                                            {studentDates.map(d => {
+                                                const val = row.dateValues[d];
+                                                const color = val === 'P' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : val === 'OD' ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : val === 'A' ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-muted-foreground/30';
+                                                return (
+                                                    <td key={d} className="px-1 py-2 text-center">
+                                                        <span className={`inline-block w-6 h-5 rounded text-[10px] font-bold leading-5 ${color}`}>{val}</span>
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className={`px-3 py-2 text-center font-extrabold bg-primary/5 ${row.percentage >= 75 ? 'text-emerald-600' : row.percentage >= 65 ? 'text-amber-600' : 'text-red-500'}`}>
+                                                {row.percentage}%
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
         </div>
     );

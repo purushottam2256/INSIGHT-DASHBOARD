@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Loader2, CheckCircle2 } from "lucide-react"
+import { Loader2, CheckCircle2, ScanLine } from "lucide-react"
 import logo from "@/assets/logo.png"
 
 import ZenBackground from "@/components/ZenBackground"
@@ -91,7 +91,7 @@ export function Login() {
                 </div>
                 
                 <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-[1.1] mb-6 drop-shadow-lg">
-                  Empowering<br/>Academic<br/>Excellence.
+                  Digitalizing<br/>Academic<br/>Excellence.
                 </h1>
                 <p className="text-white/80 text-sm lg:text-base max-w-[90%] leading-relaxed font-medium drop-shadow-md">
                    Experience the next generation of campus management with real-time analytics and seamless automation.
@@ -235,6 +235,19 @@ export function Login() {
                     </div>
                 </form>
              )}
+
+              {/* Scanner Access (no login required) */}
+              <div className="mt-8 pt-6 border-t border-border/40 text-center">
+                  <p className="text-xs text-muted-foreground mb-3 font-medium">Faculty Attendance Logging</p>
+                  <button
+                      type="button"
+                      onClick={() => navigate('/scanner', { state: { from: 'login' } })}
+                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-secondary/60 hover:bg-secondary text-foreground text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] border border-border/50 shadow-sm"
+                  >
+                      <ScanLine className="h-4 w-4 text-primary" />
+                      Open QR Scanner
+                  </button>
+              </div>
         </div>
       </div>
     </div>

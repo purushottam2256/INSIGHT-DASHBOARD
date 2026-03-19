@@ -16,6 +16,10 @@ import { ReportsPage } from "@/pages/ReportsPage"
 import { CalendarPage } from "@/pages/CalendarPage"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { FullPageLoader } from "@/components/ui/LoadingState"
+import { ScannerPage } from "./pages/ScannerPage";
+import { FacultyLogsPage } from "./pages/FacultyLogsPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
+import { ScrollToTop } from "./components/ScrollToTop";
 
 // Lazy-loaded pages
 const ProjectFeesPage = lazy(() => import("@/pages/ProjectFeesPage"))
@@ -30,15 +34,21 @@ const PageLoader = () => <FullPageLoader text="Loading Application" />
 function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="insight-ui-theme">
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/scanner" element={
+            <div className="min-h-screen bg-background text-foreground">
+              <ScannerPage />
+            </div>
+          } />
           
           <Route
             path="/*"
             element={
-              <ProtectedRoute allowedRoles={['hod', 'principal', 'management', 'developer', 'admin']}>
+              <ProtectedRoute allowedRoles={['hod', 'principal', 'management', 'developer']}>
                   <DashboardShell>
                     <Suspense fallback={<PageLoader />}>
                       <Routes>
@@ -79,19 +89,23 @@ function App() {
                         {/* Management */}
                         <Route path="/calendar" element={<CalendarPage />} />
                         <Route path="/audit-log" element={<AuditLogPage />} />
+                        <Route path="/faculty-logs" element={<FacultyLogsPage />} />
                         <Route path="/broadcast" element={
-                          <ProtectedRoute allowedRoles={['hod', 'principal', 'management', 'developer', 'admin']}>
+                          <ProtectedRoute allowedRoles={['hod', 'principal', 'management', 'developer']}>
                             <AdminBroadcastPage />
                           </ProtectedRoute>
                         } />
                         {/* System (restricted) */}
                         <Route path="/semester-upgrade" element={
-                          <ProtectedRoute allowedRoles={['principal', 'management', 'developer', 'admin']}>
+                          <ProtectedRoute allowedRoles={['principal', 'management', 'developer']}>
                             <SemesterUpgrader />
                           </ProtectedRoute>
                         } />
                         <Route path="/settings" element={<SettingsPage />} />
                         <Route path="/help" element={<HelpPage />} />
+                        
+                        {/* 404 Catch-All inside Dashboard */}
+                        <Route path="*" element={<NotFoundPage />} />
                       </Routes>
                     </Suspense>
                   </DashboardShell>

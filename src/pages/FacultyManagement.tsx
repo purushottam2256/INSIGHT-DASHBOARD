@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, Plus, Trash2, UserCog, Search, Edit2, Camera, KeyRound } from "lucide-react"
+import { Loader2, Plus, Trash2, UserCog, Search, Edit2, Camera, KeyRound, QrCode } from "lucide-react"
 import { DEPARTMENTS } from "@/lib/constants"
 import { toast } from "sonner"
+import QRCode from "qrcode"
 
 interface FacultyProfile {
   id: string
@@ -20,6 +21,7 @@ interface FacultyProfile {
   mobile?: string
   faculty_id?: string
   avatar_url?: string
+  qr_code_url?: string
   is_invite?: boolean
   status?: string
 }
@@ -53,6 +55,8 @@ export function FacultyManagement() {
 
   const [isUploadingNew, setIsUploadingNew] = useState(false)
   const newAvatarInputRef = useRef<HTMLInputElement>(null)
+  const [qrDialogFaculty, setQrDialogFaculty] = useState<FacultyProfile | null>(null)
+  const [generatingQr, setGeneratingQr] = useState(false)
 
   // List of sections (A-D) and years (1-4)
   const YEARS = ["1", "2", "3", "4"]
@@ -154,15 +158,42 @@ export function FacultyManagement() {
         if (!newUserId) throw new Error("Could not retrieve new user ID."); 
 
         // 3. IF we have an avatar URL, update the newly created profile
+        let updateData: any = {};
         if (formData.avatar_url) {
+            updateData.avatar_url = formData.avatar_url;
+        }
+
+        // 4. Generate QR Code and upload to bucket
+        try {
+            const qrDataUrl = await QRCode.toDataURL(newUserId, { width: 400, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+            const fetchRes = await fetch(qrDataUrl);
+            const qrBlob = await fetchRes.blob();
+            const qrFileName = `faculty-${newUserId}-${Date.now()}.png`;
+            
+            const { error: qrUploadError } = await supabase.storage
+                .from('qrcodes')
+                .upload(qrFileName, qrBlob, { contentType: 'image/png', upsert: true });
+
+            if (!qrUploadError) {
+                const { data: publicUrlData } = supabase.storage.from('qrcodes').getPublicUrl(qrFileName);
+                updateData.qr_code_url = publicUrlData.publicUrl;
+            } else {
+                console.warn("QR Upload failed", qrUploadError);
+            }
+        } catch (qrErr) {
+            console.warn("QR Generation failed", qrErr);
+        }
+
+        // Apply profile updates (avatar and/or QR)
+        if (Object.keys(updateData).length > 0) {
             try {
-                await supabase.from('profiles').update({ avatar_url: formData.avatar_url }).eq('id', newUserId);
+                await supabase.from('profiles').update(updateData).eq('id', newUserId);
             } catch (e) {
-                console.warn("Avatar update failed", e);
+                console.warn("Profile update failed", e);
             }
         }
 
-        // 4. (Optional) Insert Class Incharge context if applicable
+        // 5. (Optional) Insert Class Incharge context if applicable
         if (formData.role === 'class_incharge' && finalDept) {
              try {
                  await supabase.from('class_incharges').insert({
@@ -339,6 +370,47 @@ export function FacultyManagement() {
     return styles[role] || 'bg-muted text-muted-foreground'
   }
 
+  const handleGenerateQr = async (fac: FacultyProfile) => {
+    setGeneratingQr(true)
+    try {
+      // 1. Generate QR Code image as a blob
+      const qrDataUrl = await QRCode.toDataURL(fac.id, { width: 400, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+      const res = await fetch(qrDataUrl);
+      const blob = await res.blob();
+      
+      const fileName = `${fac.id}-${Date.now()}.png`
+
+      // 2. Upload to qrcodes storage bucket
+      const { error: uploadError } = await supabase.storage
+        .from('qrcodes')
+        .upload(fileName, blob, {
+          contentType: 'image/png',
+          upsert: true
+        })
+
+      if (uploadError) throw uploadError
+
+      // 3. Get the public URL
+      const { data } = supabase.storage
+        .from('qrcodes')
+        .getPublicUrl(fileName)
+
+      const finalUrl = data.publicUrl
+
+      // 4. Update the profile
+      const { error: updateError } = await supabase.from('profiles').update({ qr_code_url: finalUrl }).eq('id', fac.id)
+      if (updateError) throw updateError
+
+      toast.success('QR code generated!')
+      setQrDialogFaculty({ ...fac, qr_code_url: finalUrl })
+      fetchFaculty()
+    } catch (err: any) {
+      toast.error('QR generation failed: ' + err.message)
+    } finally {
+      setGeneratingQr(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
         {/* Quick Stats */}
@@ -486,6 +558,9 @@ export function FacultyManagement() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-0.5 shrink-0">
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => setQrDialogFaculty(fac)} title="View QR">
+                                            <QrCode className={`h-3.5 w-3.5 ${fac.qr_code_url ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                                        </Button>
                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(fac)}>
                                             <Edit2 className="h-3.5 w-3.5" />
                                         </Button>
@@ -591,6 +666,32 @@ export function FacultyManagement() {
                         Save Profile
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        {/* QR Code Dialog */}
+        <Dialog open={!!qrDialogFaculty} onOpenChange={() => setQrDialogFaculty(null)}>
+            <DialogContent className="max-w-sm">
+                <DialogHeader>
+                    <DialogTitle className="text-center">{qrDialogFaculty?.full_name}</DialogTitle>
+                    <DialogDescription className="text-center">Faculty QR Code for Attendance</DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center gap-4 py-4">
+                    {qrDialogFaculty?.qr_code_url ? (
+                        <img src={qrDialogFaculty.qr_code_url} alt="QR Code" className="w-48 h-48 rounded-xl border border-border shadow-sm" />
+                    ) : (
+                        <div className="w-48 h-48 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                            <QrCode className="h-12 w-12 opacity-30" />
+                            <p className="text-xs font-semibold">No QR Generated</p>
+                        </div>
+                    )}
+                    {!qrDialogFaculty?.qr_code_url && (
+                        <Button onClick={() => qrDialogFaculty && handleGenerateQr(qrDialogFaculty)} disabled={generatingQr} className="w-full">
+                            {generatingQr ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+                            Generate QR Code
+                        </Button>
+                    )}
+                </div>
             </DialogContent>
         </Dialog>
     </div>

@@ -108,12 +108,35 @@ export const useSearch = (query: string, debounceMs = 300) => {
                 ]);
 
                 const staticKeywords = [
+                    // Core
+                    { id: 'nav-dashboard', title: 'Dashboard', subtitle: 'Overview & Analytics', type: 'keyword', route: '/dashboard' },
+                    { id: 'nav-registration', title: 'Registration', subtitle: 'Students & Faculty', type: 'keyword', route: '/registration' },
+                    { id: 'nav-timetable', title: 'Timetable', subtitle: 'Schedule Management', type: 'keyword', route: '/timetable' },
+                    { id: 'nav-attendance', title: 'Monthly Overview', subtitle: 'Track & Manage Attendance', type: 'keyword', route: '/attendance-manager' },
+                    { id: 'nav-leaves', title: 'Leave Manager', subtitle: 'Two-Stage Approvals', type: 'keyword', route: '/leaves' },
+                    
+                    // Analytics
+                    { id: 'nav-compare', title: 'Compare', subtitle: 'Analytics & Trends', type: 'keyword', route: '/compare' },
+                    { id: 'nav-reports', title: 'Reports', subtitle: 'Generate & Export Data', type: 'keyword', route: '/reports' },
+                    { id: 'nav-fees', title: 'Project Fees', subtitle: 'Fee Collection & Tracking', type: 'keyword', route: '/project-fees' },
+                    { id: 'nav-bench', title: 'Benchmarking', subtitle: 'Department Performance', type: 'keyword', route: '/benchmarking' },
+                    
+                    // Management
+                    { id: 'nav-overview', title: 'Management Overview', subtitle: 'Campus-wide Status', type: 'keyword', route: '/overview' },
+                    { id: 'nav-faclogs', title: 'Faculty Logs', subtitle: 'Login & Attendance History', type: 'keyword', route: '/faculty-logs' },
+                    { id: 'nav-calendar', title: 'Calendar', subtitle: 'Events & Holidays', type: 'keyword', route: '/calendar' },
+                    { id: 'nav-broadcast', title: 'Broadcast', subtitle: 'Announcements & Messages', type: 'keyword', route: '/broadcast' },
+                    
+                    // System
+                    { id: 'nav-audit', title: 'Audit Log', subtitle: 'Accountability Trail', type: 'keyword', route: '/audit-log' },
+                    { id: 'nav-semester', title: 'Semester Manager', subtitle: 'Upgrade Year/Semester', type: 'keyword', route: '/semester-upgrade' },
+                    { id: 'nav-settings', title: 'Settings', subtitle: 'App Configuration', type: 'keyword', route: '/settings' },
+                    { id: 'nav-help', title: 'Help', subtitle: 'Guides & Support', type: 'keyword', route: '/help' },
+                    { id: 'nav-scanner', title: 'Scanner', subtitle: 'QR Code Attendance Tool', type: 'keyword', route: '/scanner' },
+                    
+                    // Utility aliases
                     { id: 'kw1', title: 'Logout', subtitle: 'Sign out of your account', type: 'keyword', route: 'logout' },
-                    { id: 'kw2', title: 'Settings', subtitle: 'Manage your preferences', type: 'keyword', route: '/settings' },
                     { id: 'kw3', title: 'Profile', subtitle: 'View your profile details', type: 'keyword', route: '/settings' },
-                    { id: 'kw4', title: 'Timetable', subtitle: 'View schedule', type: 'keyword', route: '/timetable' },
-                    { id: 'kw5', title: 'Calendar', subtitle: 'Academic events', type: 'keyword', route: '/calendar' },
-                    { id: 'kw6', title: 'Leave Manager', subtitle: 'Manage leaves', type: 'keyword', route: '/leaves' },
                 ];
 
                 const matchingKeywords = staticKeywords.filter(k => 

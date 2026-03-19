@@ -3,7 +3,7 @@ import {
     User, Shield, Info, 
     Mail, Building2,
     Sun, Moon, Loader2, Bug,
-    Lock, Key, ChevronRight, CheckCircle2,
+    Lock, Key, ChevronRight, CheckCircle2, ChevronDown,
     Sparkles, Monitor, Smartphone, Server, Paintbrush, Fingerprint,
     Phone, Briefcase, CalendarDays, Droplets, GraduationCap, Award, MapPin
 } from 'lucide-react';
@@ -27,7 +27,6 @@ export function SettingsPage() {
     // Profile State
     const [fullName, setFullName] = useState('');
     const [extendedProfile, setExtendedProfile] = useState<any>(null);
-    const [loadingProfile, setLoadingProfile] = useState(false);
     
     // Avatar State
     const [avatarUrl, setAvatarUrl] = useState('');
@@ -36,6 +35,7 @@ export function SettingsPage() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [updatingPassword, setUpdatingPassword] = useState(false);
+    const [showAllFields, setShowAllFields] = useState(false);
 
     useEffect(() => {
         if (profile?.full_name) setFullName(profile.full_name);
@@ -45,17 +45,14 @@ export function SettingsPage() {
     useEffect(() => {
         const fetchExtendedProfile = async () => {
             if (!profile?.id) return;
-            setLoadingProfile(true);
             try {
-                const tableToQuery = ['hod', 'principal', 'management', 'developer', 'admin'].includes(profile.role) ? 'admins' : 'profiles';
+                const tableToQuery = ['hod', 'principal', 'management', 'developer'].includes(profile.role) ? 'admins' : 'profiles';
                 const { data, error } = await supabase.from(tableToQuery).select('*').eq('id', profile.id).single();
                 if (!error && data) {
                     setExtendedProfile(data);
                 }
             } catch (err) {
                 console.error('Failed to fetch extended profile', err);
-            } finally {
-                setLoadingProfile(false);
             }
         };
         fetchExtendedProfile();
@@ -86,14 +83,14 @@ export function SettingsPage() {
         }
     };
 
-    const isAdminRole = ['principal', 'management', 'developer'].includes(profile?.role || '');
+    const isAdminRole = ['developer', 'management', 'principal'].includes(profile?.role || '');
 
     const settingsTabs = [
         { value: 'profile', label: 'My Profile', icon: User, desc: 'Personal details and avatar' },
         { value: 'appearance', label: 'Appearance', icon: Paintbrush, desc: 'Theme preferences' },
         { value: 'security', label: 'Security', icon: Fingerprint, desc: 'Password and authentication' },
         { value: 'issues', label: 'Issues & Support', icon: Bug, desc: 'Report bugs and requests' },
-        ...(isAdminRole ? [{ value: 'admin', label: 'Admin', icon: Shield, desc: 'System administrators' }] : []),
+        ...(isAdminRole ? [{ value: 'admin', label: 'System Admins', icon: Shield, desc: 'Manage platform administrators' }] : []),
         { value: 'about', label: 'About', icon: Info, desc: 'App info and versions' },
     ];
 
@@ -246,6 +243,30 @@ export function SettingsPage() {
                                                     />
                                                 </div>
 
+                                                {/* Toggle for extra fields */}
+                                                <div className="md:col-span-2">
+                                                    <button
+                                                        onClick={() => setShowAllFields(!showAllFields)}
+                                                        className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/80 transition-colors py-2"
+                                                    >
+                                                        <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showAllFields ? 'rotate-180' : ''}`} />
+                                                        {showAllFields ? 'Hide Details' : 'Show All Details'}
+                                                    </button>
+                                                </div>
+
+                                                {showAllFields && (
+                                                    <>
+                                                <div className="space-y-2.5">
+                                                    <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
+                                                        <Fingerprint className="h-3.5 w-3.5 text-primary" /> Username
+                                                    </label>
+                                                    <Input 
+                                                        defaultValue={extendedProfile?.username || 'Empty'} 
+                                                        disabled 
+                                                        className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium px-4" 
+                                                    />
+                                                </div>
+
                                                 <div className="space-y-2.5">
                                                     <label className="text-[11px] font-extrabold text-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
                                                         <User className="h-3.5 w-3.5 text-primary" /> Gender
@@ -333,6 +354,8 @@ export function SettingsPage() {
                                                         className="rounded-2xl h-12 bg-background border-border/60 opacity-60 text-base cursor-not-allowed font-medium" 
                                                     />
                                                 </div>
+                                                    </>
+                                                )}
                                             </div>
 
                                         </div>
@@ -443,7 +466,7 @@ export function SettingsPage() {
                             </div>
                         )}
 
-                        {/* ADMIN CONTENT */}
+                        {/* System Admins Component Hidden for now because it was removed */}
                         {activeTab === 'admin' && isAdminRole && (
                             <div className="p-0 rounded-[2.5rem] bg-card border border-border/50 shadow-sm relative overflow-hidden">
                                 <AdminManagementTab profile={profile} />
@@ -475,7 +498,7 @@ export function SettingsPage() {
                                 <h3 className="text-4xl font-black text-foreground tracking-tight flex items-center justify-center gap-3">
                                     INSIGHT <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-bold tracking-widest uppercase align-middle">v2.0</span>
                                 </h3>
-                                <p className="text-sm font-extrabold text-primary tracking-[0.25em] uppercase mt-3 mb-8">Empowering Education</p>
+                                <p className="text-sm font-extrabold text-primary tracking-[0.25em] uppercase mt-3 mb-8">Digitalizing Education</p>
                                 <p className="text-sm text-foreground mb-12 font-medium">Engineered exclusively for <span className="font-extrabold text-primary">MRCE</span></p>
                                 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">

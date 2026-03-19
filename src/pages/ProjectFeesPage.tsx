@@ -40,6 +40,7 @@ interface FeeStudent {
   updated_at: string;
   // Joined fields
   roll_no?: string;
+  is_le?: boolean;
   full_name?: string;
   dept?: string;
   year?: number;
@@ -71,6 +72,7 @@ export default function ProjectFeesPage() {
   const [expandedStudents, setExpandedStudents] = useState<FeeStudent[]>([]);
   const [expandedLoading, setExpandedLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [deptFilter, setDeptFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ status: 'paid' | 'due'; reason: string }>({ status: 'due', reason: '' });
@@ -152,7 +154,7 @@ export default function ProjectFeesPage() {
         .from('project_fee_students')
         .select(`
           id, fee_id, student_id, status, reason, updated_at,
-          students!inner(roll_no, full_name, dept, year, section)
+          students!inner(roll_no, full_name, dept, year, section, is_le)
         `)
         .eq('fee_id', feeId)
         .order('updated_at', { ascending: false });
@@ -167,6 +169,7 @@ export default function ProjectFeesPage() {
         reason: row.reason,
         updated_at: row.updated_at,
         roll_no: row.students?.roll_no,
+        is_le: row.students?.is_le,
         full_name: row.students?.full_name,
         dept: row.students?.dept,
         year: row.students?.year,
@@ -328,6 +331,15 @@ export default function ProjectFeesPage() {
         (f.description && f.description.toLowerCase().includes(q))
       );
     }
+    
+    if (deptFilter !== 'all') {
+      result = result.filter(f => {
+        if (f.dept === deptFilter) return true;
+        const classes = feeClasses[f.id] || [];
+        return classes.some(c => c.dept === deptFilter);
+      });
+    }
+
     if (statusFilter !== 'all') {
       result = result.filter(f => {
         const info = getStatusInfo(f);
@@ -338,7 +350,7 @@ export default function ProjectFeesPage() {
       });
     }
     return result;
-  }, [fees, searchQuery, statusFilter, feeStudentCounts]);
+  }, [fees, searchQuery, statusFilter, feeStudentCounts, deptFilter, feeClasses]);
 
   // ── Institutional Stats ───────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -453,6 +465,20 @@ export default function ProjectFeesPage() {
             className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-border bg-card text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all"
           />
         </div>
+
+        {!permissions.isDeptScoped && (
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="px-3 py-2.5 rounded-xl border border-border bg-card text-sm font-semibold focus:ring-2 focus:ring-primary/30 outline-none"
+          >
+            <option value="all">All Departments</option>
+            {DEPARTMENTS.map(d => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+        )}
+
         <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-xl">
           {(['all', 'incomplete', 'overdue', 'complete'] as StatusFilter[]).map(f => (
             <button
@@ -667,7 +693,10 @@ export default function ProjectFeesPage() {
                                   .map((s, i) => (
                                   <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                                     <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                                    <td className="px-4 py-3 font-mono text-xs">{s.roll_no || '—'}</td>
+                                    <td className="px-4 py-3 font-mono text-xs">
+                                        {s.roll_no || '—'}
+                                        {s.is_le && <span className="ml-1.5 px-1 py-0.5 rounded text-[8px] font-black bg-primary/15 text-primary uppercase tracking-widest">LE</span>}
+                                    </td>
                                     <td className="px-4 py-3 font-medium">{s.full_name || '—'}</td>
                                     <td className="px-4 py-3 text-center text-xs font-medium">{s.year}-{(s.dept || '').toUpperCase()}-{s.section}</td>
                                     <td className="px-4 py-3 text-center font-semibold">₹{fee.amount.toLocaleString()}</td>
