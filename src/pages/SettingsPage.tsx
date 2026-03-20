@@ -83,7 +83,7 @@ export function SettingsPage() {
         }
     };
 
-    const isAdminRole = ['developer', 'management', 'principal'].includes(profile?.role || '');
+    const isAdminRole = ['developer', 'principal'].includes(profile?.role || '');
 
     const settingsTabs = [
         { value: 'profile', label: 'My Profile', icon: User, desc: 'Personal details and avatar' },

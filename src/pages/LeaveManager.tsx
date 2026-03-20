@@ -658,12 +658,7 @@ export function LeaveManager() {
                                         {sl.reason_text || 'No details provided.'}
                                     </p>
                                 </CardHeader>
-                                {sl.status === 'pending' && canCrudStudentLeaves && (
-                                    <CardFooter className="flex md:flex-col justify-end gap-2 p-4 bg-muted/20 border-l">
-                                        <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'approved')} className="bg-emerald-600 hover:bg-emerald-700 w-full">Approve</Button>
-                                        <Button size="sm" onClick={() => handleStudentLeaveAction(sl.id, 'rejected')} variant="destructive" className="w-full">Reject</Button>
-                                    </CardFooter>
-                                )}
+
                             </Card>
                         ))}
                     </div>

@@ -1,6 +1,6 @@
 <div align="center">
   <img src="./src/assets/logo.png" alt="Insight Logo" width="180" />
-  <h1>INSIGHT  -v1.0.0</h1>
+  <h1>INSIGHT - v1.0.0</h1>
   <p><strong>The Definitive Institutional Operating System.</strong></p>
   <p><em>Engineered for Scale, Speed, and Deep Academic Telemetry.</em></p>
   
@@ -11,6 +11,7 @@
     <img alt="React" src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" />
     <img alt="Vite" src="https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E" />
     <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" />
+    <img alt="TanStack Query" src="https://img.shields.io/badge/React_Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white" />
     <img alt="Supabase" src="https://img.shields.io/badge/Supabase-181818?style=for-the-badge&logo=supabase&logoColor=3ECF8E" />
     <img alt="Framer Motion" src="https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white" />
   </p>
@@ -53,12 +54,21 @@ The command center for live and historical classroom telemetry.
 - **Administrative Overrides:** Principals/HODs possess clearance to edit past sessions or issue On-Duty (OD) statuses, protecting aggregate calculations.
 - **Benchmarking & Compliance:** Isolate sub-75% (low attendance) and sub-65% (detained) students instantly across the entire campus.
 
-### 4. 🔀 The Compare Array
+### 4. 🔀 Advanced Interactive Charts & Drill-Downs
 
 Compare multiple classes, years, or entire departments natively.
 
 - **Multi-Dimensional Visuals:** Combine 2 or more classes into rendering engines executing at 60fps (Area, Line, and Bar modes).
+- **Interactive Drill-Downs:** Seamlessly click on campus-wide department bars to instantly animate and drill down into section-level attendance analytics.
 - **Predictive Trends:** Track week-over-week or month-over-month engagement drops.
+
+### 5. ⚡ Enterprise Scalability & Caching
+
+Engineered to handle massive concurrent traffic and millions of rows.
+
+- **React Query Auto-Caching:** Sub-millisecond instantaneous loads across the dashboard with `@tanstack/react-query` aggressively caching fetches.
+- **Realtime Cache Invalidation:** Supabase Postgres streams instantly invalidate and refresh specifically targeted cache queries.
+- **Server-Side Pagination:** Logs and massive datasets utilize `.range()` SQL architecture to prevent browser memory leaks on infinite data arrays.
 
 ### 5. 📑 Two-Stage Leave Permission Engine
 

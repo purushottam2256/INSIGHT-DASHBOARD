@@ -23,7 +23,7 @@ export function ScannerPage() {
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [scanning, setScanning] = useState(false);
     const [gpsLocation, setGpsLocation] = useState<{lat: number, lng: number} | null>(null);
-    const [campusCenter, setCampusCenter] = useState<{lat: number, lng: number} | null>(null);
+    const [campusCenter] = useState<{lat: number, lng: number}>({ lat: 17.5602548, lng: 78.4581462 }); // MRCE Maisammaguda, Hyderabad
     const [locError, setLocError] = useState('');
     const [recentScans, setRecentScans] = useState<any[]>([]);
     const [scanCount, setScanCount] = useState(0);
@@ -49,7 +49,6 @@ export function ScannerPage() {
                 (pos) => {
                     const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     setGpsLocation(coords);
-                    setCampusCenter(coords);
                 },
                 (err) => setLocError(err?.message || 'Location unavailable'),
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
