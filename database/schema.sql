@@ -184,6 +184,7 @@ CREATE TABLE public.students (
     bluetooth_uuid TEXT UNIQUE, -- Beacon UUID
     face_id_data TEXT, -- Encrypted face recognition data
     avatar_url TEXT, -- Student profile photo URL
+    is_le BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

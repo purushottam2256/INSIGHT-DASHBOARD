@@ -320,6 +320,19 @@ export function ScannerPage() {
                 .single();
 
             if (existing) {
+                const checkInTime = new Date(existing.check_in).getTime();
+                const nowTime = new Date().getTime();
+                const diffMinutes = (nowTime - checkInTime) / 60000;
+
+                if (diffMinutes < 30) {
+                    playSound('error');
+                    toast.error(`Cooldown active. Try again in ${Math.ceil(30 - diffMinutes)} mins.`);
+                    setScanResult(`⏳ Cooldown (${Math.ceil(30 - diffMinutes)}m)`);
+                    setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
+                    processingRef.current = false;
+                    return;
+                }
+
                 const { error } = await supabase
                     .from('faculty_attendance_logs')
                     .update({ check_out: nowISO })
