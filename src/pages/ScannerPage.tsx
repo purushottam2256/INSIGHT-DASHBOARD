@@ -256,17 +256,24 @@ export function ScannerPage() {
             return;
         }
 
-        // GPS is optional — don't block scans if location isn't available yet
-        if (gpsLocation) {
-            const distance = getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng);
-            if (distance > MAX_DISTANCE_KM) {
-                playSound('error');
-                toast.error(`Too far from scan zone (${distance.toFixed(2)}km).`);
-                setScanResult('❌ Out of Zone');
-                setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
-                processingRef.current = false;
-                return;
-            }
+        // GPS is mandatory for the scanner
+        if (!gpsLocation) {
+            playSound('error');
+            toast.error("Scanner GPS location not available. Please allow location access.");
+            setScanResult('❌ Scanner No GPS');
+            setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
+            processingRef.current = false;
+            return;
+        }
+
+        const distance = getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng);
+        if (distance > MAX_DISTANCE_KM) {
+            playSound('error');
+            toast.error(`Scanner is too far from campus (${distance.toFixed(2)}km).`);
+            setScanResult('❌ Scanner Off Campus');
+            setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
+            processingRef.current = false;
+            return;
         }
 
         try {
@@ -309,8 +316,17 @@ export function ScannerPage() {
                 }
             }
 
-            // GPS status label for scan result
-            const gpsLabel = facultyGpsStatus === 'stale' ? ' ⚠️' : facultyGpsStatus === 'valid' ? ' 📍' : '';
+            if (facultyGpsStatus === 'missing' || facultyGpsStatus === 'stale') {
+                playSound('error');
+                toast.error(`Cannot verify ${facultyName}'s location. App must send recent GPS (${facultyGpsStatus}).`);
+                setScanResult(`❌ ${facultyName} — GPS ${facultyGpsStatus === 'missing' ? 'Missing' : 'Stale'}`);
+                setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
+                processingRef.current = false;
+                return;
+            }
+
+            // GPS status label for scan result (only valid reaches here)
+            const gpsLabel = ' 📍';
 
             const { data: existing } = await supabase
                 .from('faculty_attendance_logs')
@@ -376,14 +392,18 @@ export function ScannerPage() {
     };
 
     return (
-        <div className="space-y-5 animate-fade-in max-w-5xl mx-auto p-4 md:p-6">
+        <div className="space-y-5 animate-fade-in max-w-5xl mx-auto p-4 md:p-6 relative">
+            {/* Subtle background glow */}
+            <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-gradient-to-br from-primary/5 via-transparent to-emerald-500/5 -z-10 rounded-full blur-3xl pointer-events-none" />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-1">
                     <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
                         Faculty Scanner
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 tracking-widest uppercase">
-                            <Zap className="inline h-3 w-3 mr-1" />Turbo
+                        <span className="text-xs font-bold px-3 py-1 rounded-full bg-gradient-to-r from-primary/20 to-primary/5 text-primary border border-primary/30 shadow-[0_0_15px_-3px_rgba(var(--primary),0.3)] tracking-widest uppercase relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
+                            <Zap className="inline h-3.5 w-3.5 mr-1" />Turbo
                         </span>
                     </h1>
                     <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">QR Attendance · 60+ scans/min</p>
@@ -399,58 +419,64 @@ export function ScannerPage() {
 
             {/* Stats Strip */}
             <div className="grid grid-cols-3 gap-3">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/40 shadow-sm">
-                    <div className="p-2 rounded-xl bg-emerald-500/10">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/40 backdrop-blur-2xl border border-white/5 shadow-lg relative overflow-hidden group transition-transform hover:-translate-y-0.5">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20 shadow-[0_0_15px_-3px_rgba(16,185,129,0.3)]">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     </div>
-                    <div>
-                        <p className="text-2xl font-black text-foreground tabular-nums">{scanCount}</p>
+                    <div className="relative z-10">
+                        <p className="text-2xl font-black text-foreground tabular-nums tracking-tight">{scanCount}</p>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Scans Today</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/40 shadow-sm">
-                    <div className="p-2 rounded-xl bg-primary/10">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/40 backdrop-blur-2xl border border-white/5 shadow-lg relative overflow-hidden group transition-transform hover:-translate-y-0.5">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-2.5 rounded-xl bg-primary/10 ring-1 ring-primary/20 shadow-[0_0_15px_-3px_rgba(var(--primary),0.3)]">
                         <Camera className="h-4 w-4 text-primary" />
                     </div>
-                    <div>
-                        <p className="text-2xl font-black text-foreground">{scanning ? 'ON' : 'OFF'}</p>
+                    <div className="relative z-10">
+                        <p className="text-2xl font-black text-foreground tracking-tight">{scanning ? 'ACTIVE' : 'OFF'}</p>
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Camera</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/40 shadow-sm">
-                    <div className="p-2 rounded-xl bg-blue-500/10">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card/40 backdrop-blur-2xl border border-white/5 shadow-lg relative overflow-hidden group transition-transform hover:-translate-y-0.5">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-2.5 rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]">
                         <Shield className="h-4 w-4 text-blue-500" />
                     </div>
-                    <div>
-                        <p className="text-2xl font-black text-foreground">{gpsLocation ? '✓' : '✗'}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">GPS Lock</p>
+                    <div className="relative z-10">
+                        <p className="text-2xl font-black text-foreground tracking-tight">{gpsLocation ? 'LOCKED' : 'SEARCH'}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">GPS Match</p>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Scanner Card */}
-                <Card className="border-border/40 shadow-sm rounded-3xl overflow-hidden bg-card/60 backdrop-blur-xl">
-                    <CardHeader className="bg-secondary/20 pb-3">
+                <Card className="border-white/5 shadow-2xl rounded-3xl overflow-hidden bg-card/40 backdrop-blur-2xl relative group">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                    <CardHeader className="bg-secondary/10 pb-3 border-b border-border/10 relative z-10">
                         <div className="flex items-center justify-between">
                             <div>
                                 <CardTitle className="flex items-center gap-2 text-base">
-                                    <QrCode className="w-5 h-5 text-primary" />
+                                    <div className="p-1.5 rounded-lg bg-primary/10">
+                                        <QrCode className="w-5 h-5 text-primary" />
+                                    </div>
                                     Live QR Scanner
                                 </CardTitle>
-                                <CardDescription className="mt-1 text-xs">
+                                <CardDescription className="mt-1 text-xs font-medium">
                                     Continuous mode · Camera never stops · Just point and scan
                                 </CardDescription>
                             </div>
                             <div className="flex gap-2">
                                 {!scanning && (
-                                    <Button size="sm" onClick={() => startScanner()} className="gap-1.5 rounded-xl">
+                                    <Button size="sm" onClick={() => startScanner()} className="gap-1.5 rounded-xl shadow-[0_0_15px_-3px_rgba(var(--primary),0.4)]">
                                         <RefreshCw className="h-3.5 w-3.5" />
                                         Restart
                                     </Button>
                                 )}
                                 {scanning && (
-                                    <Button variant="destructive" size="sm" onClick={handleStop} className="gap-1.5 rounded-xl">
+                                    <Button variant="destructive" size="sm" onClick={handleStop} className="gap-1.5 rounded-xl shadow-[0_0_15px_-3px_rgba(239,68,68,0.4)]">
                                         <StopCircle className="h-4 w-4" />
                                         Stop
                                     </Button>
@@ -461,20 +487,20 @@ export function ScannerPage() {
                     <CardContent className="p-4 relative">
                         {/* Ambient glow */}
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-b-3xl">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
-                            <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px]" />
+                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px]" />
                         </div>
 
                         {/* Instructions */}
-                        <div className="mb-3 text-center relative z-10">
-                            <p className="text-xs text-muted-foreground font-medium">
-                                📱 Point camera at faculty QR code · Detection is <span className="text-primary font-bold">instant</span> · No button needed
-                            </p>
+                        <div className="mb-4 text-center relative z-10 inline-flex mx-auto w-full justify-center">
+                            <span className="text-xs text-muted-foreground font-semibold bg-secondary/30 px-4 py-1.5 rounded-full border border-white/5">
+                                📱 Point camera at faculty QR code · Detection is <span className="text-primary font-black drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]">instant</span>
+                            </span>
                         </div>
 
                         {/* Scanner Container */}
-                        <div className="relative w-full overflow-hidden rounded-[1.5rem] border-2 border-primary/20 bg-black shadow-2xl transition-all duration-300" style={{ height: '340px' }}>
-                            <div id={SCANNER_ELEMENT_ID} className="w-full h-full" />
+                        <div className="relative w-full overflow-hidden rounded-[1.5rem] border border-white/10 ring-1 ring-primary/20 bg-black shadow-[0_0_40px_-10px_rgba(var(--primary),0.15)] transition-all duration-500 group-hover:shadow-[0_0_50px_-10px_rgba(var(--primary),0.25)]" style={{ height: '340px' }}>
+                            <div id={SCANNER_ELEMENT_ID} className="w-full h-full [&_video]:object-cover" />
 
                             {/* Camera Error State with Retry */}
                             {!scanning && !scanResult && (
@@ -509,24 +535,24 @@ export function ScannerPage() {
 
                             {/* Scan Result Flash Overlay — brief flash, then camera resumes */}
                             {scanResult && (
-                                <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center transition-all duration-200 ${
-                                    scanResult.includes('❌') ? 'bg-red-950/80' : 'bg-emerald-950/80'
+                                <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center p-6 text-center transition-all duration-300 backdrop-blur-md ${
+                                    scanResult.includes('❌') ? 'bg-red-950/90' : 'bg-emerald-950/90'
                                 }`}>
                                     {scanResult.includes('❌') ? (
-                                        <AlertCircle className="w-12 h-12 text-red-400 mb-2" />
+                                        <AlertCircle className="w-16 h-16 text-red-500 mb-3 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-bounce" />
                                     ) : (
-                                        <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2" />
+                                        <CheckCircle2 className="w-16 h-16 text-emerald-500 mb-3 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-bounce" />
                                     )}
-                                    <h3 className="text-lg font-black text-white">{scanResult}</h3>
-                                    <p className="text-[10px] text-white/50 mt-2 font-semibold uppercase tracking-widest">
-                                        Auto-resuming scan...
+                                    <h3 className="text-2xl font-black text-white tracking-tight">{scanResult}</h3>
+                                    <p className="text-[10px] text-white/70 mt-3 font-bold uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/10">
+                                        Auto-resuming scan
                                     </p>
                                 </div>
                             )}
 
                             {/* Scanning Laser */}
                             {scanning && !scanResult && (
-                                <div className="absolute top-0 left-0 w-full h-[2px] bg-emerald-400 shadow-[0_0_15px_3px_rgba(52,211,153,0.7)] animate-scan-laser z-10 pointer-events-none" />
+                                <div className="absolute top-0 left-0 w-full h-[2px] bg-emerald-400 shadow-[0_0_20px_5px_rgba(52,211,153,0.7)] animate-scan-laser z-10 pointer-events-none opacity-80" />
                             )}
 
                             {/* Live Badge */}
@@ -542,31 +568,37 @@ export function ScannerPage() {
 
                             {/* Corner Markers */}
                             {scanning && !scanResult && (
-                                <div className="absolute inset-4 pointer-events-none z-10">
-                                    <div className="absolute top-0 left-0 w-7 h-7 border-t-3 border-l-3 border-emerald-400/80 rounded-tl-lg" />
-                                    <div className="absolute top-0 right-0 w-7 h-7 border-t-3 border-r-3 border-emerald-400/80 rounded-tr-lg" />
-                                    <div className="absolute bottom-0 left-0 w-7 h-7 border-b-3 border-l-3 border-emerald-400/80 rounded-bl-lg" />
-                                    <div className="absolute bottom-0 right-0 w-7 h-7 border-b-3 border-r-3 border-emerald-400/80 rounded-br-lg" />
+                                <div className="absolute inset-5 pointer-events-none z-10">
+                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-500/90 rounded-tl-xl drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-500/90 rounded-tr-xl drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-500/90 rounded-bl-xl drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-500/90 rounded-br-xl drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
                                 </div>
                             )}
                         </div>
 
                         {/* GPS Status */}
-                        <div className="flex items-center p-2.5 bg-secondary/30 rounded-xl mt-3 text-xs font-semibold">
-                            <MapPin className="w-3.5 h-3.5 text-orange-500 mr-2 shrink-0" />
+                        <div className="flex items-center p-3 bg-card/40 backdrop-blur-md rounded-2xl mt-4 text-xs font-semibold border border-white/5 shadow-inner">
+                            <div className="p-1.5 rounded-lg bg-blue-500/10 mr-3">
+                                <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+                            </div>
                             {gpsLocation ? (
-                                <span className="text-muted-foreground truncate flex-1">
-                                    {gpsLocation.lat.toFixed(4)}, {gpsLocation.lng.toFixed(4)}
-                                </span>
+                                <div className="flex flex-col flex-1">
+                                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Scanner Location</span>
+                                    <span className="text-foreground truncate mt-0.5">
+                                        {gpsLocation.lat.toFixed(5)}, {gpsLocation.lng.toFixed(5)}
+                                    </span>
+                                </div>
                             ) : (
-                                <span className="text-red-400 text-[11px]">{locError || 'Acquiring GPS...'}</span>
+                                <span className="text-red-400 text-xs flex-1">{locError || 'Acquiring GPS...'}</span>
                             )}
                             {gpsLocation && (
-                                <span className={`text-[10px] font-bold ml-auto pl-2 ${
+                                <span className={`text-[10px] font-bold ml-auto pl-3 py-1 px-3 rounded-full border ${
                                     getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM
-                                        ? 'text-emerald-500' : 'text-red-500'
+                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                        : 'bg-red-500/10 text-red-500 border-red-500/20'
                                 }`}>
-                                    {getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM ? '✓ Zone Valid' : '✗ Out of Zone'}
+                                    {getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM ? '✓ ON CAMPUS' : '✗ OUT OF ZONE'}
                                 </span>
                             )}
                         </div>
@@ -574,44 +606,61 @@ export function ScannerPage() {
                 </Card>
 
                 {/* Recent Scans */}
-                <Card className="border-border/40 shadow-sm rounded-3xl overflow-hidden bg-card/60 backdrop-blur-xl flex flex-col">
-                    <CardHeader className="bg-secondary/20 pb-3">
+                <Card className="border-white/5 shadow-2xl rounded-3xl overflow-hidden bg-card/40 backdrop-blur-2xl flex flex-col relative group">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                    <CardHeader className="bg-secondary/10 pb-4 border-b border-border/10 relative z-10">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <History className="w-5 h-5 text-amber-500" />
+                            <div className="p-1.5 rounded-lg bg-amber-500/10">
+                                <History className="w-5 h-5 text-amber-500" />
+                            </div>
                             Recent Scans
                             {recentScans.length > 0 && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary ml-auto">
+                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 ml-auto ring-1 ring-amber-500/20 shadow-[0_0_10px_-3px_rgba(245,158,11,0.3)]">
                                     {recentScans.length}
                                 </span>
                             )}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-3 flex-1 overflow-auto max-h-[500px]">
+                    <CardContent className="p-3 flex-1 overflow-auto max-h-[500px] relative z-10">
                         {recentScans.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground/50 py-12">
-                                <History className="w-10 h-10 mb-3 opacity-20" />
-                                <p className="text-sm font-semibold">No recent scans</p>
+                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-16 animate-fade-in relative">
+                                <div className="absolute inset-0 bg-gradient-to-t from-background/5 to-transparent pointer-events-none" />
+                                <div className="p-5 rounded-full bg-secondary/30 mb-5 ring-1 ring-border/50 shadow-inner relative">
+                                    <div className="absolute inset-0 bg-amber-500/5 rounded-full animate-ping opacity-20" />
+                                    <History className="w-10 h-10 opacity-40 animate-pulse" />
+                                </div>
+                                <p className="text-sm font-semibold text-foreground/80 tracking-wide">No scans yet today</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1.5 text-center max-w-[200px] leading-relaxed">Waiting for the first faculty member to check in.</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
                                 {recentScans.map((scan, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 rounded-2xl bg-background/50 border border-border/30 transition-all hover:border-border/50">
-                                        <div className={`p-2 rounded-xl shrink-0 ${scan.check_out ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+                                    <div key={i} className="group/item flex items-center gap-3 p-3 rounded-2xl bg-secondary/20 hover:bg-secondary/40 border border-white/5 hover:border-white/10 transition-all duration-300 hover:shadow-[0_4px_15px_-5px_rgba(0,0,0,0.3)] hover:-translate-y-0.5 relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover/item:animate-[shimmer_1.5s_infinite]" />
+                                        <div className={`relative p-2.5 rounded-xl shrink-0 transition-colors ${
+                                            scan.check_out 
+                                                ? 'bg-red-500/10 text-red-500 group-hover/item:bg-red-500/20 ring-1 ring-red-500/20' 
+                                                : 'bg-emerald-500/10 text-emerald-500 group-hover/item:bg-emerald-500/20 ring-1 ring-emerald-500/20'
+                                        }`}>
                                             {scan.check_out
-                                                ? <ArrowLeft className="h-3.5 w-3.5 text-red-500" />
-                                                : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                                ? <ArrowLeft className="h-4 w-4" />
+                                                : <CheckCircle2 className="h-4 w-4" />
                                             }
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-foreground text-sm truncate">
+                                        <div className="flex-1 min-w-0 relative">
+                                            <p className="font-bold text-foreground text-sm truncate group-hover/item:text-primary transition-colors">
                                                 {scan.profiles?.full_name || 'Unknown'}
                                             </p>
-                                            <p className="text-[10px] text-muted-foreground font-medium">
-                                                {format(new Date(scan.date), 'MMM d')} · {format(new Date(scan.check_out || scan.check_in), 'h:mm a')}
+                                            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                                                {format(new Date(scan.date), 'MMM d')} 
+                                                <span className="w-1 h-1 rounded-full bg-muted-foreground/40 inline-block" /> 
+                                                {format(new Date(scan.check_out || scan.check_in), 'h:mm a')}
                                             </p>
                                         </div>
-                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                                            scan.check_out ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
+                                        <span className={`relative text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest border transition-all ${
+                                            scan.check_out 
+                                                ? 'bg-red-500/5 text-red-500 border-red-500/20 group-hover/item:bg-red-500/10 group-hover/item:border-red-500/40 group-hover/item:shadow-[0_0_10px_-3px_rgba(239,68,68,0.3)]' 
+                                                : 'bg-emerald-500/5 text-emerald-500 border-emerald-500/20 group-hover/item:bg-emerald-500/10 group-hover/item:border-emerald-500/40 group-hover/item:shadow-[0_0_10px_-3px_rgba(16,185,129,0.3)]'
                                         }`}>
                                             {scan.check_out ? 'OUT' : 'IN'}
                                         </span>
