@@ -256,25 +256,8 @@ export function ScannerPage() {
             return;
         }
 
-        // GPS is mandatory for the scanner
-        if (!gpsLocation) {
-            playSound('error');
-            toast.error("Scanner GPS location not available. Please allow location access.");
-            setScanResult('❌ Scanner No GPS');
-            setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
-            processingRef.current = false;
-            return;
-        }
-
-        const distance = getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng);
-        if (distance > MAX_DISTANCE_KM) {
-            playSound('error');
-            toast.error(`Scanner is too far from campus (${distance.toFixed(2)}km).`);
-            setScanResult('❌ Scanner Off Campus');
-            setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
-            processingRef.current = false;
-            return;
-        }
+        // Scanner GPS is no longer mandatory; can be used anywhere.
+        // Faculty GPS verification happens below.
 
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
@@ -365,8 +348,8 @@ export function ScannerPage() {
                         date: today,
                         check_in: nowISO,
                         status: 'present',
-                        location_lat: gpsLocation?.lat ?? 0,
-                        location_lng: gpsLocation?.lng ?? 0
+                        location_lat: facultyProfile?.last_lat ?? 0,
+                        location_lng: facultyProfile?.last_lng ?? 0
                     });
                 if (error) throw error;
                 playSound('success');
@@ -445,8 +428,8 @@ export function ScannerPage() {
                         <Shield className="h-4 w-4 text-blue-500" />
                     </div>
                     <div className="relative z-10">
-                        <p className="text-2xl font-black text-foreground tracking-tight">{gpsLocation ? 'LOCKED' : 'SEARCH'}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">GPS Match</p>
+                        <p className="text-2xl font-black text-foreground tracking-tight">ACTIVE</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Faculty Check</p>
                     </div>
                 </div>
             </div>
@@ -596,9 +579,9 @@ export function ScannerPage() {
                                 <span className={`text-[10px] font-bold ml-auto pl-3 py-1 px-3 rounded-full border ${
                                     getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM
                                         ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                                        : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                        : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                 }`}>
-                                    {getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM ? '✓ ON CAMPUS' : '✗ OUT OF ZONE'}
+                                    {getDistanceFromCampus(gpsLocation.lat, gpsLocation.lng) <= MAX_DISTANCE_KM ? '✓ ON CAMPUS' : 'REMOTE SCAN'}
                                 </span>
                             )}
                         </div>

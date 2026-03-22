@@ -97,7 +97,7 @@ export function FacultyLogsPage() {
 
     const fetchGraphData = async () => {
         // Lightweight query for just dates and status to build the graph
-        const query = buildBaseQuery('faculty_attendance_logs', `date, status, profiles!inner(dept, full_name)`);
+        const query = buildBaseQuery('faculty_attendance_logs', `date, status, profiles:faculty_id!inner(dept, full_name)`);
         const { data, error } = await query;
         if (!error && data) {
             setGraphLogs(data);
@@ -114,7 +114,7 @@ export function FacultyLogsPage() {
 
         let query = buildBaseQuery('faculty_attendance_logs', `
             *,
-            profiles!inner(full_name, dept)
+            profiles:faculty_id!inner(full_name, dept)
         `).order('date', { ascending: false }).order('check_in', { ascending: false });
 
         const from = currentPage * PAGE_SIZE;
