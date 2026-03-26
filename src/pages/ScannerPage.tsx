@@ -170,9 +170,13 @@ export function ScannerPage() {
             await scanner.start(
                 { facingMode: "environment" },
                 {
-                    fps: 20,
-                    qrbox: 250,
+                    fps: 10,
                     disableFlip: false,
+                    videoConstraints: {
+                        facingMode: "environment",
+                        width: { ideal: 1920, min: 1280 },
+                        height: { ideal: 1080, min: 720 }
+                    }
                 },
                 // ── CONTINUOUS SCAN HANDLER ──
                 // Camera NEVER stops — we debounce duplicate scans and process in background
@@ -321,12 +325,12 @@ export function ScannerPage() {
             if (existing) {
                 const checkInTime = new Date(existing.check_in).getTime();
                 const nowTime = new Date().getTime();
-                const diffMinutes = (nowTime - checkInTime) / 60000;
+                const diffSeconds = (nowTime - checkInTime) / 1000;
 
-                if (diffMinutes < 30) {
+                if (diffSeconds < 10) {
                     playSound('error');
-                    toast.error(`Cooldown active. Try again in ${Math.ceil(30 - diffMinutes)} mins.`);
-                    setScanResult(`⏳ Cooldown (${Math.ceil(30 - diffMinutes)}m)`);
+                    toast.error(`Cooldown active. Try again in ${Math.ceil(10 - diffSeconds)} seconds.`);
+                    setScanResult(`⏳ Cooldown (${Math.ceil(10 - diffSeconds)}s)`);
                     setTimeout(() => { if (mountedRef.current) setScanResult(null); }, RESULT_DISPLAY_MS);
                     processingRef.current = false;
                     return;
@@ -389,7 +393,7 @@ export function ScannerPage() {
                             <Zap className="inline h-3.5 w-3.5 mr-1" />Turbo
                         </span>
                     </h1>
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">QR Attendance · 60+ scans/min</p>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">QR Attendance</p>
                 </div>
                 <button
                     onClick={() => navigate(backPath)}

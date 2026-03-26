@@ -310,11 +310,12 @@ export function LeaveManager() {
         else { toast.success('Student leave added'); setShowAddStudentLeave(false); setStudentLeaveForm({ student_id: '', reason_category: 'personal', reason_text: '', start_date: '', end_date: '' }); loadStudentLeaves() }
     }
 
-    const handleStudentLeaveAction = async (id: string, action: 'approved' | 'rejected') => {
-        const { error } = await supabase.from('student_leaves').update({ status: action, approved_by: session?.user?.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id)
-        if (error) toast.error(error.message)
-        else { toast.success(`Leave ${action}`); loadStudentLeaves() }
-    }
+    // Unused function (commenting out to fix build error TS6133)
+    // const handleStudentLeaveAction = async (id: string, action: 'approved' | 'rejected') => {
+    //     const { error } = await supabase.from('student_leaves').update({ status: action, approved_by: session?.user?.id, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', id)
+    //     if (error) toast.error(error.message)
+    //     else { toast.success(`Leave ${action}`); loadStudentLeaves() }
+    // }
 
     const handleDeleteStudentLeave = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this student leave?')) return;

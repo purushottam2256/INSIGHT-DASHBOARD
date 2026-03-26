@@ -156,7 +156,7 @@ CREATE TABLE public.departments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     code TEXT UNIQUE NOT NULL, -- CSE, ECE, H&S, etc.
     name TEXT NOT NULL,
-    hod_id UUID REFERENCES public.profiles(id),
+    hod_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -228,7 +228,7 @@ CREATE INDEX idx_subjects_class_lookup ON public.subjects(dept, year, semester);
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.master_timetables (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    faculty_id UUID NOT NULL REFERENCES public.profiles(id),
+    faculty_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     day TEXT NOT NULL CHECK (day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')),
     day_of_week INTEGER,                      -- 1=Mon, 2=Tue ... 6=Sat
     slot_id TEXT NOT NULL, -- p1, p2, p3, p4, p5, p6, p7
@@ -294,8 +294,8 @@ CREATE TABLE public.substitutions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     date DATE NOT NULL,
     slot_id TEXT NOT NULL,
-    original_faculty_id UUID NOT NULL REFERENCES public.profiles(id),
-    substitute_faculty_id UUID REFERENCES public.profiles(id),
+    original_faculty_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    substitute_faculty_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     subject_id UUID NOT NULL REFERENCES public.subjects(id),
     target_dept TEXT NOT NULL,
     target_year INTEGER NOT NULL,
@@ -303,7 +303,7 @@ CREATE TABLE public.substitutions (
     status request_status DEFAULT 'pending',
     requested_at TIMESTAMPTZ DEFAULT NOW(),
     accepted_at TIMESTAMPTZ,
-    created_by UUID REFERENCES public.profiles(id), -- Who created the request
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- Who created the request
     notes TEXT,
     CONSTRAINT unique_substitution_request UNIQUE (date, slot_id, original_faculty_id, substitute_faculty_id)
 );
@@ -320,8 +320,8 @@ CREATE INDEX idx_substitutions_status ON public.substitutions(status);
 CREATE TABLE public.class_swaps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     date DATE NOT NULL,
-    faculty_a_id UUID NOT NULL REFERENCES public.profiles(id),
-    faculty_b_id UUID NOT NULL REFERENCES public.profiles(id),
+    faculty_a_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    faculty_b_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     slot_a_id TEXT NOT NULL, -- Faculty A's original slot
     slot_b_id TEXT NOT NULL, -- Faculty B's original slot
     status request_status DEFAULT 'pending',
@@ -342,7 +342,7 @@ CREATE INDEX idx_swaps_status ON public.class_swaps(status);
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.attendance_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    faculty_id UUID NOT NULL REFERENCES public.profiles(id),
+    faculty_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES public.subjects(id),
     date DATE NOT NULL,
     slot_id TEXT NOT NULL,
@@ -358,10 +358,10 @@ CREATE TABLE public.attendance_sessions (
     od_count INTEGER DEFAULT 0,
     leave_count INTEGER DEFAULT 0,
     is_substitute BOOLEAN DEFAULT FALSE,
-    substitute_faculty_id UUID REFERENCES public.profiles(id),
+    substitute_faculty_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     is_modified BOOLEAN DEFAULT FALSE,
     modified_at TIMESTAMPTZ,
-    modified_by UUID REFERENCES public.profiles(id),
+    modified_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     is_synced BOOLEAN DEFAULT FALSE,
     synced_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -390,7 +390,7 @@ CREATE TABLE public.attendance_logs (
     is_manual BOOLEAN DEFAULT FALSE,
     is_modified BOOLEAN DEFAULT FALSE,
     modified_at TIMESTAMPTZ,
-    modified_by UUID REFERENCES public.profiles(id),
+    modified_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     notes TEXT,
     CONSTRAINT unique_session_student UNIQUE (session_id, student_id)
 );
@@ -408,16 +408,16 @@ CREATE INDEX idx_logs_marked_at ON public.attendance_logs(marked_at);
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.leaves (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
     start_date TIMESTAMPTZ NOT NULL,
     end_date TIMESTAMPTZ NOT NULL,
     leave_type TEXT NOT NULL, -- 'full_day' | 'half_day'
     status TEXT DEFAULT 'pending_hod' CHECK (status IN ('pending', 'pending_hod', 'pending_principal', 'approved', 'rejected', 'accepted', 'declined')),
     admin_comment TEXT,
-    approved_by_hod UUID REFERENCES public.profiles(id),
+    approved_by_hod UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     hod_approved_at TIMESTAMPTZ,
-    approved_by_principal UUID REFERENCES public.profiles(id),
+    approved_by_principal UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     principal_approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -489,8 +489,8 @@ CREATE TABLE IF NOT EXISTS public.student_leaves (
     total_days INTEGER GENERATED ALWAYS AS ((end_date - start_date) + 1) STORED,
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'approved', 'rejected')),
-    submitted_by UUID REFERENCES public.profiles(id),
-    approved_by UUID REFERENCES public.profiles(id),
+    submitted_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     approved_at TIMESTAMPTZ,
     remarks TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -526,7 +526,7 @@ CREATE TABLE public.attendance_permissions (
     end_date DATE NOT NULL, -- Same as start_date for single day
     start_time TIME, -- For OD (time range)
     end_time TIME, -- For OD (time range)
-    granted_by UUID NOT NULL REFERENCES public.profiles(id), -- Incharge or HOD
+    granted_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL, -- Incharge or HOD
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT valid_date_range CHECK (end_date >= start_date),
@@ -549,7 +549,7 @@ CREATE INDEX idx_permissions_type ON public.attendance_permissions(type);
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.offline_queue (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    faculty_id UUID NOT NULL REFERENCES public.profiles(id),
+    faculty_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     operation TEXT NOT NULL CHECK (operation IN ('create_session', 'update_session', 'create_log', 'update_log')),
     payload JSONB NOT NULL,
     retry_count INTEGER DEFAULT 0,
@@ -570,7 +570,7 @@ CREATE INDEX idx_queue_created ON public.offline_queue(created_at);
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     type notification_type NOT NULL,
     priority notification_priority DEFAULT 'normal',
     title TEXT NOT NULL,
@@ -615,7 +615,7 @@ INSERT INTO public.app_config (key, value, description) VALUES
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.class_incharges (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    faculty_id UUID NOT NULL REFERENCES public.profiles(id),
+    faculty_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     dept TEXT NOT NULL,
     year INTEGER NOT NULL,
     section TEXT NOT NULL,
@@ -634,7 +634,7 @@ CREATE INDEX idx_class_incharges_class ON public.class_incharges(dept, year, sec
 -- ----------------------------------------------------------------------------
 CREATE TABLE public.issues (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
     type TEXT CHECK (type IN ('bug', 'feature', 'support', 'other')) DEFAULT 'bug',
