@@ -145,6 +145,20 @@ export function AdminManagementTab({ profile }: { profile: UserProfile | null })
 
         try {
             if (selectedAvatarFile) {
+                // 1. Delete old avatar if replacing an existing one
+                if (editingAdmin?.avatar_url) {
+                    try {
+                        const urlParts = editingAdmin.avatar_url.split('/avatars/');
+                        if (urlParts.length === 2) {
+                            const oldPath = urlParts[1].split('?')[0]; // strip query params
+                            await supabase.storage.from('avatars').remove([oldPath]);
+                        }
+                    } catch (delErr) {
+                        console.warn("Failed to delete old avatar, proceeding anyway", delErr);
+                    }
+                }
+
+                // 2. Upload new avatar
                 const fileExt = selectedAvatarFile.name.split('.').pop() || 'jpg'
                 const fileName = `admin-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
                 const { error: uploadError } = await supabase.storage

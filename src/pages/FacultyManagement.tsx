@@ -39,17 +39,21 @@ export function FacultyManagement() {
   const [searchQuery, setSearchQuery] = useState("")
   const [editingFaculty, setEditingFaculty] = useState<FacultyProfile | null>(null)
   const [editData, setEditData] = useState({ 
-    full_name: "", role: "", dept: "", email: "", mobile: "", faculty_id: "", avatar_url: "", new_password: ""
+    full_name: "", role: "", dept: "", email: "", mobile: "", faculty_id: "", avatar_url: "", new_password: "",
+    year: "", section: ""
   })
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     email: "",
     fullName: "",
+    password: "",
     role: "faculty",
     dept: "",
     year: "1",
     section: "A",
+    mobile: "",
+    faculty_id: "",
     avatar_url: ""
   })
 
@@ -130,8 +134,8 @@ export function FacultyManagement() {
 
     setLoading(true)
     try {
-        // 1. Generate a temporary password
-        const tempPassword = "Welcome@" + Math.floor(1000 + Math.random() * 9000);
+        // 1. Use custom password or generate a temporary one
+        const tempPassword = formData.password.trim() || "Welcome@" + Math.floor(1000 + Math.random() * 9000);
         const finalDept = isHod && profile?.dept ? profile.dept : formData.dept;
 
         // 2. Direct Account Creation via Secure RPC
@@ -184,7 +188,11 @@ export function FacultyManagement() {
             console.warn("QR Generation failed", qrErr);
         }
 
-        // Apply profile updates (avatar and/or QR)
+        // Apply profile updates (avatar, QR, mobile, faculty_id)
+        if (formData.avatar_url) updateData.avatar_url = formData.avatar_url;
+        if (formData.mobile.trim()) updateData.mobile = formData.mobile.trim();
+        if (formData.faculty_id.trim()) updateData.faculty_id = formData.faculty_id.trim();
+
         if (Object.keys(updateData).length > 0) {
             try {
                 await supabase.from('profiles').update(updateData).eq('id', newUserId);
@@ -219,7 +227,7 @@ export function FacultyManagement() {
             { duration: 15000 }
         );
 
-        setFormData({ email: "", fullName: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A", avatar_url: "" });
+        setFormData({ email: "", fullName: "", password: "", role: "faculty", dept: profile?.dept || '', year: "1", section: "A", mobile: "", faculty_id: "", avatar_url: "" });
         fetchFaculty();
 
     } catch (error: any) {
@@ -229,8 +237,25 @@ export function FacultyManagement() {
     }
   }
 
-  const startEdit = (fac: FacultyProfile) => {
+  const startEdit = async (fac: FacultyProfile) => {
     setEditingFaculty(fac)
+    let year = "", section = ""
+    // Fetch class_incharges data for this faculty
+    try {
+        const { data: ciData } = await supabase
+            .from('class_incharges')
+            .select('year, section')
+            .eq('faculty_id', fac.id)
+            .eq('is_active', true)
+            .limit(1)
+            .single()
+        if (ciData) {
+            year = String(ciData.year)
+            section = ciData.section
+        }
+    } catch (e) {
+        // No class_incharges entry, that's fine
+    }
     setEditData({ 
         full_name: fac.full_name, 
         role: fac.role, 
@@ -239,7 +264,9 @@ export function FacultyManagement() {
         mobile: fac.mobile || "", 
         faculty_id: fac.faculty_id || "", 
         avatar_url: fac.avatar_url || "", 
-        new_password: "" 
+        new_password: "",
+        year,
+        section
     })
   }
 
@@ -296,6 +323,20 @@ export function FacultyManagement() {
 
     setIsUploadingNew(true)
     try {
+      // 1. Delete old avatar if a previous one was uploaded
+      if (formData.avatar_url) {
+          try {
+              const urlParts = formData.avatar_url.split('/avatars/');
+              if (urlParts.length === 2) {
+                  const oldPath = urlParts[1].split('?')[0]; // strip query params
+                  await supabase.storage.from('avatars').remove([oldPath]);
+              }
+          } catch (delErr) {
+              console.warn("Failed to delete old avatar, proceeding anyway", delErr);
+          }
+      }
+
+      // 2. Upload new avatar
       const fileExt = file.name.split('.').pop() || 'jpg'
       const fileName = `new_faculty_${Date.now()}-${Math.random()}.${fileExt}`
       
@@ -347,6 +388,18 @@ export function FacultyManagement() {
         .eq('id', editingFaculty.id)
       
       if (profileError) throw profileError
+
+      // 3. Update class_incharges for year/section if values are set
+      if (editData.year && editData.section) {
+          // Delete existing entries for this faculty, then insert new one
+          await supabase.from('class_incharges').delete().eq('faculty_id', editingFaculty.id)
+          await supabase.from('class_incharges').insert({
+              faculty_id: editingFaculty.id,
+              dept: editData.dept,
+              year: parseInt(editData.year),
+              section: editData.section
+          })
+      }
       
       toast.success("Faculty profile updated successfully")
       setEditingFaculty(null)
@@ -458,6 +511,27 @@ export function FacultyManagement() {
                         <div className="space-y-1">
                             <Label className="text-xs">Full Name <span className="text-red-500">*</span></Label>
                             <Input placeholder="Dr. Smith" value={formData.fullName} onChange={(e) => setFormData({...formData, fullName: e.target.value})} required className="h-8 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Password</Label>
+                            <Input 
+                                type="text" 
+                                placeholder="Auto-generated if left empty" 
+                                value={formData.password} 
+                                onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                                className="h-8 text-sm font-mono" 
+                            />
+                            <p className="text-[9px] text-muted-foreground">Leave empty to auto-generate (Welcome@XXXX)</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs">Mobile</Label>
+                                <Input placeholder="+91..." value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} className="h-8 text-sm" />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs">Faculty ID</Label>
+                                <Input placeholder="e.g. FAC001" value={formData.faculty_id} onChange={(e) => setFormData({...formData, faculty_id: e.target.value})} className="h-8 text-sm" />
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
@@ -642,6 +716,28 @@ export function FacultyManagement() {
                             <Label className="text-xs">Faculty ID</Label>
                             <Input value={editData.faculty_id} onChange={(e) => setEditData(p => ({ ...p, faculty_id: e.target.value }))} className="h-8 text-sm" />
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                        <div className="grid gap-2">
+                            <Label className="text-xs text-blue-700 dark:text-blue-400">Year</Label>
+                            <Select value={editData.year || ""} onValueChange={(v) => setEditData(p => ({ ...p, year: v }))}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select year" /></SelectTrigger>
+                                <SelectContent>
+                                    {YEARS.map(y => <SelectItem key={y} value={y}>Year {y}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label className="text-xs text-blue-700 dark:text-blue-400">Section</Label>
+                            <Select value={editData.section || ""} onValueChange={(v) => setEditData(p => ({ ...p, section: v }))}>
+                                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select section" /></SelectTrigger>
+                                <SelectContent>
+                                    {SECTIONS.map(s => <SelectItem key={s} value={s}>Section {s}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <p className="text-[9px] text-muted-foreground col-span-2">Assign the faculty to a specific class year and section</p>
                     </div>
 
                     <div className="rounded-lg border border-border/50 p-3 bg-muted/10 space-y-2.5 mt-2">

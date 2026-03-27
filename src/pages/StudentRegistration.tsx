@@ -166,6 +166,20 @@ export function StudentRegistration() {
 
       setUploadingAvatar(true)
       try {
+          // 1. Delete old avatar if present
+          if (formData.avatar_url) {
+              try {
+                  const urlParts = formData.avatar_url.split('/avatars/');
+                  if (urlParts.length === 2) {
+                      const oldPath = urlParts[1].split('?')[0]; // strip query params
+                      await supabase.storage.from('avatars').remove([oldPath]);
+                  }
+              } catch (delErr) {
+                  console.warn("Failed to delete old avatar, proceeding anyway", delErr);
+              }
+          }
+
+          // 2. Upload new avatar
           const fileExt = file.name.split('.').pop() || 'jpg'
           const fileName = `${editingId || 'new_' + Date.now()}-${Math.random()}.${fileExt}`
           

@@ -526,7 +526,7 @@ CREATE TABLE public.attendance_permissions (
     end_date DATE NOT NULL, -- Same as start_date for single day
     start_time TIME, -- For OD (time range)
     end_time TIME, -- For OD (time range)
-    granted_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL, -- Incharge or HOD
+    granted_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- Incharge or HOD (nullable for cascading deletes)
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT valid_date_range CHECK (end_date >= start_date),
@@ -1006,6 +1006,7 @@ CREATE OR REPLACE FUNCTION public.admin_create_profile(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
     new_user_id UUID;
@@ -1021,8 +1022,8 @@ BEGIN
         RAISE EXCEPTION 'Unauthorized: HODs can only provision faculty for their own department';
     END IF;
 
-    -- Generate password hash
-    encrypted_pw := crypt(p_password, gen_salt('bf'));
+    -- Generate password hash (use extensions schema for pgcrypto functions)
+    encrypted_pw := extensions.crypt(p_password, extensions.gen_salt('bf'));
 
     -- Check if user already exists in auth.users (Orphan account from previous failed attempts)
     SELECT id INTO new_user_id FROM auth.users WHERE email = p_email;
