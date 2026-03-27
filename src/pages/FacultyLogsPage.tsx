@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveCont
 import { Search, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DEPARTMENTS } from '@/lib/constants';
+import { toast } from 'sonner';
 
 interface FacultyLog {
     id: string;
@@ -40,7 +41,7 @@ export function FacultyLogsPage() {
     const [hasMore, setHasMore] = useState(true);
     
     // Filter States
-    const [timeframe, setTimeframe] = useState<Timeframe>('today');
+    const [timeframe, setTimeframe] = useState<Timeframe>('week');
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     
@@ -69,38 +70,47 @@ export function FacultyLogsPage() {
         return () => { supabase.removeChannel(channel); };
     }, [timeframe, deptFilter, debouncedSearch]);
 
-    const buildBaseQuery = (table: string, columns: string) => {
-        let query = supabase.from(table).select(columns, { count: 'exact' });
-
+    const getDateRange = () => {
+        const now = new Date();
         if (timeframe === 'today') {
-            query = query.eq('date', format(new Date(), 'yyyy-MM-dd'));
+            const d = format(now, 'yyyy-MM-dd');
+            return { start: d, end: d };
         } else if (timeframe === 'week') {
-            const start = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-            const end = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-            query = query.gte('date', start).lte('date', end);
+            return {
+                start: format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+                end: format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+            };
         } else {
-            const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
-            const end = format(endOfMonth(new Date()), 'yyyy-MM-dd');
-            query = query.gte('date', start).lte('date', end);
+            return {
+                start: format(startOfMonth(now), 'yyyy-MM-dd'),
+                end: format(endOfMonth(now), 'yyyy-MM-dd'),
+            };
         }
-
-        if (deptFilter !== 'All') {
-            query = query.eq('profiles.dept', deptFilter);
-        }
-
-        if (debouncedSearch.trim()) {
-            query = query.ilike('profiles.full_name', `%${debouncedSearch.trim()}%`);
-        }
-
-        return query;
     };
 
     const fetchGraphData = async () => {
-        // Lightweight query for just dates and status to build the graph
-        const query = buildBaseQuery('faculty_attendance_logs', `date, status, profiles:faculty_id!inner(dept, full_name)`);
-        const { data, error } = await query;
-        if (!error && data) {
-            setGraphLogs(data);
+        try {
+            const { start, end } = getDateRange();
+            let query = supabase
+                .from('faculty_attendance_logs')
+                .select('date, status, profiles:faculty_id!inner(dept, full_name)')
+                .gte('date', start).lte('date', end);
+
+            if (deptFilter !== 'All') {
+                query = query.eq('profiles.dept', deptFilter);
+            }
+            if (debouncedSearch.trim()) {
+                query = query.ilike('profiles.full_name', `%${debouncedSearch.trim()}%`);
+            }
+
+            const { data, error } = await query;
+            if (error) {
+                console.error('Graph data error:', error);
+            } else {
+                setGraphLogs(data || []);
+            }
+        } catch (err) {
+            console.error('Graph fetch error:', err);
         }
     };
 
@@ -112,30 +122,46 @@ export function FacultyLogsPage() {
             setLoadingMore(true);
         }
 
-        let query = buildBaseQuery('faculty_attendance_logs', `
-            *,
-            profiles:faculty_id!inner(full_name, dept)
-        `).order('date', { ascending: false }).order('check_in', { ascending: false });
+        try {
+            const { start, end } = getDateRange();
+            let query = supabase
+                .from('faculty_attendance_logs')
+                .select('*, profiles:faculty_id!inner(full_name, dept)', { count: 'exact' })
+                .gte('date', start).lte('date', end)
+                .order('date', { ascending: false })
+                .order('check_in', { ascending: false });
 
-        const from = currentPage * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        query = query.range(from, to);
-
-        const { data, count, error } = await query;
-        
-        if (!error && data) {
-            const newLogs = data as unknown as FacultyLog[];
-            if (reset) {
-                setLogs(newLogs);
-            } else {
-                setLogs(prev => [...prev, ...newLogs]);
+            if (deptFilter !== 'All') {
+                query = query.eq('profiles.dept', deptFilter);
             }
+            if (debouncedSearch.trim()) {
+                query = query.ilike('profiles.full_name', `%${debouncedSearch.trim()}%`);
+            }
+
+            const from = currentPage * PAGE_SIZE;
+            const to = from + PAGE_SIZE - 1;
+            query = query.range(from, to);
+
+            const { data, count, error } = await query;
             
-            const totalCount = count ?? 0;
-            setHasMore(totalCount > from + newLogs.length);
-            setPage(currentPage + 1);
-        } else if (error) {
-            console.error('Error fetching paginated logs:', error);
+            if (error) {
+                console.error('Error fetching paginated logs:', error);
+                toast.error('Failed to load faculty logs');
+            } else if (data) {
+                const newLogs = data as unknown as FacultyLog[];
+                if (reset) {
+                    setLogs(newLogs);
+                } else {
+                    setLogs(prev => [...prev, ...newLogs]);
+                }
+                
+                const totalCount = count ?? 0;
+                setHasMore(totalCount > from + newLogs.length);
+                setPage(currentPage + 1);
+            }
+        } catch (err) {
+            console.error('Faculty logs fetch error:', err);
+            toast.error('Failed to load faculty logs');
         }
         
         setLoading(false);

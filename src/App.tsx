@@ -61,12 +61,8 @@ function App() {
                         } />
                         <Route path="/students" element={<Navigate to="/registration" replace />} />
                         <Route path="/faculty" element={<Navigate to="/registration" replace />} />
-                        {/* Timetable — hidden from principal */}
-                        <Route path="/timetable" element={
-                          <ProtectedRoute allowedRoles={['hod', 'management', 'developer', 'admin']}>
-                            <TimetablePage />
-                          </ProtectedRoute>
-                        } />
+                        {/* Timetable — accessible to all roles (Schedule Hub) */}
+                        <Route path="/timetable" element={<TimetablePage />} />
                         {/* Attendance */}
                         <Route path="/attendance-manager" element={<AttendanceManager />} />
                         <Route path="/attendance-detail" element={<Navigate to="/attendance-manager" replace />} />

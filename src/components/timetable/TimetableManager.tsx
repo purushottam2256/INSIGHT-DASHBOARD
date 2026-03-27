@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from "@/contexts/AuthContext"
 import { SubjectFacultyMapping, useTimetable, ConflictResult, ClassMetadata } from "@/hooks/useTimetable"
+import { ScheduleHubViewer } from "./ScheduleHubViewer"
+import { FacultyAvailabilityPanel } from "./FacultyAvailabilityPanel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -26,7 +28,7 @@ const GridPulseLoader = ({ size = "md", className = "" }: { size?: "sm" | "md" |
             <div key={c} className={cn(
               cellSize, "rounded-[2px] bg-primary/60",
               "animate-pulse"
-            )} style={{ animationDelay: `${(r * s + c) * 80}ms`, animationDuration: '1.2s' }} />
+            )} style={{ animationDelay: ((r * 3 + c) * 80) + 'ms', animationDuration: '1.2s' }} />
           ))}
         </div>
       ))}
@@ -38,7 +40,7 @@ const GridPulseLoader = ({ size = "md", className = "" }: { size?: "sm" | "md" |
 const DotLoader = ({ className = "" }: { className?: string }) => (
   <div className={cn("inline-flex items-center gap-1", className)}>
     {[0, 1, 2].map(i => (
-      <span key={i} className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: `${i * 150}ms`, animationDuration: '0.6s' }} />
+      <span key={i} className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: (i * 150) + 'ms', animationDuration: '0.6s' }} />
     ))}
   </div>
 )
@@ -62,8 +64,8 @@ const currentAcademicYear = () => {
 }
 
 // ─── Types ───────────────────────────────────────────────────
-interface CellData { subject_id: string; faculty_id: string; acronym: string; is_lab?: boolean }
-type GridState = Record<string, CellData>
+interface CellData { subject_id: string; faculty_id: string; acronym: string; is_lab?: boolean; batch?: string }
+type GridState = Record<string, CellData[]>
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -73,7 +75,9 @@ export function TimetableManager() {
   const {
     fetchFaculty, fetchTimetableByClass, fetchSubjectsByClass,
     saveBulkTimetable, crossCheckValidation, fetchSavedClassTimetables,
-    fetchClassIncharges, saveClassIncharges, autoGenerateTimetable, updateSubject
+    fetchClassIncharges, saveClassIncharges, 
+    fetchYearIncharge, saveYearIncharge,
+    autoGenerateTimetable, updateSubject
   } = useTimetable()
 
   // ─── Wizard Step ───────────────────────────────────────────
@@ -97,6 +101,7 @@ export function TimetableManager() {
   // ─── Step 3: Class Incharges ───────────────────────────────
   const [incharge1, setIncharge1] = useState("")
   const [incharge2, setIncharge2] = useState("")
+  const [yearIncharge, setYearIncharge] = useState("")
 
   // ─── Step 4: Grid ──────────────────────────────────────────
   const [mode, setMode] = useState<"auto" | "manual" | null>(null)
@@ -165,18 +170,27 @@ export function TimetableManager() {
       // Load existing incharges
       const incharges = await fetchClassIncharges(activeDept!, meta.year, meta.section)
       if (incharges[0]) setIncharge1(incharges[0].faculty_id)
+      else setIncharge1("")
       if (incharges[1]) setIncharge2(incharges[1].faculty_id)
+      else setIncharge2("")
+
+      const yIncharge = await fetchYearIncharge(activeDept!, meta.year)
+      setYearIncharge(yIncharge || "")
 
       // Check if existing timetable exists
-      const existing = await fetchTimetableByClass(activeDept!, meta.year, meta.section)
+      const existing = await fetchTimetableByClass(activeDept!, meta.year, meta.section, absoluteSemester)
       if (existing.length > 0) {
         // Pre-fill grid and mappings from existing data
         const newGrid: GridState = {}
         for (const e of existing) {
-          newGrid[`${e.day_of_week}-${e.period}`] = {
+          const key = `${e.day_of_week}-${e.period}`
+          if (!newGrid[key]) newGrid[key] = []
+          newGrid[key].push({
             subject_id: e.subject_id, faculty_id: e.faculty_id,
             acronym: e.subject_acronym || e.subject_code || '?',
-          }
+            is_lab: e.subjects?.is_lab,
+            batch: e.batch,
+          })
         }
         setGrid(newGrid)
         // Update faculty in mappings from existing entries
@@ -252,16 +266,25 @@ export function TimetableManager() {
   const handleAutoGenerate = async () => {
     setLoading(true)
     try {
-      const result = await autoGenerateTimetable(mappings, meta.dept, meta.year, meta.section)
+      const { placed, unplaced } = await autoGenerateTimetable(mappings, meta.dept, meta.year, meta.section)
       const newGrid: GridState = {}
-      for (const e of result) {
-        newGrid[`${e.day_of_week}-${e.period}`] = {
-          subject_id: e.subject_id, faculty_id: e.faculty_id, acronym: e.acronym, is_lab: e.is_lab
-        }
+      for (const e of placed) {
+        const key = `${e.day_of_week}-${e.period}`
+        if (!newGrid[key]) newGrid[key] = []
+        newGrid[key].push({
+          subject_id: e.subject_id, faculty_id: e.faculty_id, acronym: e.acronym, is_lab: e.is_lab, batch: mappings.find(m => m.subject_id === e.subject_id)?.batch
+        })
       }
       setGrid(newGrid)
       setMode("auto")
-      toast.success(`Auto-generated ${result.length} slots! You can still manually adjust.`)
+      
+      if (unplaced.length > 0) {
+        // Find unique unplaced subjects for the message
+        const uniqueUnplaced = [...new Set(unplaced)]
+        toast.warning(`Generated ${placed.length} slots. Clashes prevented placing: ${uniqueUnplaced.join(', ')}. Please assign these manually.`, { duration: 8000 })
+      } else {
+        toast.success(`Auto-generated all ${placed.length} slots successfully! You can still manually adjust.`)
+      }
     } catch (err: any) { toast.error(err.message) }
     finally { setLoading(false) }
   }
@@ -297,8 +320,8 @@ export function TimetableManager() {
 
       // Check for Overload (>5 classes)
       // Count current assignments in the grid
-      const localDayCount = Object.values(grid).filter(cell => 
-        cell.faculty_id === m.faculty_id && parseInt(Object.keys(grid).find(key => grid[key] === cell)!.split('-')[0]) === editingCell.day
+      const localDayCount = Object.values(grid).flat().filter(cell => 
+        cell.faculty_id === m.faculty_id && parseInt(Object.keys(grid).find(key => grid[key]?.includes(cell))!.split('-')[0]) === editingCell.day
       ).length
       
       // Add existing global assignments
@@ -324,11 +347,32 @@ export function TimetableManager() {
     // Conflict check for all periods
     for (const p of periodsToAssign) {
       const k = `${editingCell.day}-${p}`
-      const busy = Object.entries(grid).find(([gk, c]) => 
-        gk !== k && 
-        c.faculty_id === m.faculty_id && 
-        gk.split('-')[0] === editingCell.day.toString() && 
-        gk.split('-')[1] === p.toString()
+      const existingCells = grid[k] || []
+      
+      // If theory, must be empty
+      if (!m.is_lab && existingCells.length > 0) {
+        toast.warning('Slot already occupied')
+        return
+      }
+
+      // If lab, can share if DIFFERENT batch
+      if (m.is_lab && existingCells.length > 0) {
+        if (existingCells.some(c => !c.is_lab)) {
+          toast.warning('Cannot mix lab and theory in same slot')
+          return
+        }
+        if (existingCells.some(c => c.batch === m.batch || c.batch === 'all' || m.batch === 'all')) {
+          toast.warning(`Batch ${m.batch} already has a lab here`)
+          return
+        }
+      }
+
+      // Faculty double-booking check within the grid
+      const busy = Object.entries(grid).find(([gk, cells]) => 
+        cells.some(c => c.faculty_id === m.faculty_id && 
+          gk.split('-')[0] === editingCell.day.toString() && 
+          gk.split('-')[1] === p.toString()
+        )
       )
       if (busy) {
         toast.warning(`${m.faculty_name || 'Faculty'} is already assigned to period ${p} on this day`)
@@ -339,26 +383,64 @@ export function TimetableManager() {
     setGrid(prev => {
       const next = { ...prev }
       for (const p of periodsToAssign) {
-        next[`${editingCell.day}-${p}`] = { 
-          subject_id: m.subject_id, faculty_id: m.faculty_id || "", acronym: m.acronym, is_lab: m.is_lab 
-        }
+        const key = `${editingCell.day}-${p}`
+        if (!next[key]) next[key] = []
+        next[key] = [...next[key], { 
+          subject_id: m.subject_id, faculty_id: m.faculty_id || "", acronym: m.acronym, is_lab: m.is_lab, batch: m.batch 
+        }]
       }
       return next
     })
     setEditingCell(null)
   }
 
-  const handleCellDelete = (day: number, period: number) => {
+  const handleCellDelete = (day: number, period: number, subject_id?: string) => {
     const key = `${day}-${period}`
-    setGrid(prev => { const n = { ...prev }; delete n[key]; return n })
+    setGrid(prev => {
+      const next = { ...prev };
+      const cells = next[key] || [];
+      if (cells.length === 0) return next;
+
+      // If a specific subject is provided, delete only that one
+      // Otherwise, clear the entire slot
+      
+      const targetCell = subject_id ? cells.find(c => c.subject_id === subject_id) : cells[0];
+      if (!targetCell) return next;
+
+      if (targetCell.is_lab) {
+        // Lab spans 3 periods. Delete all 3.
+        const isMorning = period <= 3;
+        const periodsToDelete = isMorning ? [1, 2, 3] : [4, 5, 6];
+        for (const p of periodsToDelete) {
+          const k = `${day}-${p}`
+          if (next[k]) {
+            if (subject_id) {
+              next[k] = next[k].filter(c => c.subject_id !== subject_id)
+              if (next[k].length === 0) delete next[k]
+            } else {
+              delete next[k]
+            }
+          }
+        }
+      } else {
+        if (subject_id) {
+          next[key] = next[key].filter(c => c.subject_id !== subject_id)
+          if (next[key].length === 0) delete next[key]
+        } else {
+          delete next[key];
+        }
+      }
+      return next;
+    })
     setEditingCell(null)
   }
 
   // ═══ Step 5: Cross-Check & Submit ═════════════════════════
   const handlePreSubmit = async () => {
-    const entries = Object.entries(grid).map(([k, c]) => {
+    const entries: any[] = []
+    Object.entries(grid).forEach(([k, cells]) => {
       const [d, p] = k.split('-').map(Number)
-      return { day_of_week: d, period: p, subject_id: c.subject_id, faculty_id: c.faculty_id }
+      cells.forEach(c => entries.push({ day_of_week: d, period: p, subject_id: c.subject_id, faculty_id: c.faculty_id, is_lab: c.is_lab }))
     })
     if (entries.length === 0) { toast.warning('No entries to save'); return }
 
@@ -372,15 +454,17 @@ export function TimetableManager() {
   }
 
   const handleConfirmSubmit = async () => {
-    const entries = Object.entries(grid).map(([k, c]) => {
+    const entries: any[] = []
+    Object.entries(grid).forEach(([k, cells]) => {
       const [d, p] = k.split('-').map(Number)
-      return { day_of_week: d, period: p, subject_id: c.subject_id, faculty_id: c.faculty_id }
+      cells.forEach(c => entries.push({ day_of_week: d, period: p, subject_id: c.subject_id, faculty_id: c.faculty_id, batch: c.batch }))
     })
     setIsSaving(true)
     try {
       // Save incharges (always save to allow clearing previous ones)
       const inchargeIds = [incharge1, incharge2].filter(Boolean)
       await saveClassIncharges(meta.dept, meta.year, meta.section, inchargeIds)
+      await saveYearIncharge(meta.dept, meta.year, yearIncharge)
 
       // Save subject acronyms and credits that might have been edited in Step 2
       const subjectUpdates = mappings.map(m => updateSubject(m.subject_id, { acronym: m.acronym, credits: m.credits }))
@@ -419,7 +503,7 @@ export function TimetableManager() {
     setLoading(true)
     try {
       // 1. Fetch source timetable
-      const sourceData = await fetchTimetableByClass(sourceInfo.dept, sourceInfo.year, sourceInfo.section)
+      const sourceData = await fetchTimetableByClass(sourceInfo.dept, sourceInfo.year, sourceInfo.section, sourceInfo.semester)
       if (!sourceData || sourceData.length === 0) {
         toast.error('Source timetable is empty.')
         return
@@ -447,12 +531,15 @@ export function TimetableManager() {
          )
          
          if (match) {
-           newGrid[`${e.day_of_week}-${e.period}`] = {
+           const key = `${e.day_of_week}-${e.period}`
+           if (!newGrid[key]) newGrid[key] = []
+           newGrid[key].push({
              subject_id: match.subject_id,
              faculty_id: e.faculty_id, // Clone the faculty assignment
              acronym: match.acronym,
-             is_lab: match.is_lab
-           }
+             is_lab: match.is_lab,
+             batch: match.batch,
+           })
            // Update mapping with the cloned faculty
            match.faculty_id = e.faculty_id
            match.faculty_name = e.faculty_name
@@ -490,31 +577,23 @@ export function TimetableManager() {
   const handlePrint = () => window.print()
 
   // ═══ Helper: cell display ═════════════════════════════════
-  const getCellDisplay = (day: number, period: number) => {
-    const cell = grid[`${day}-${period}`]
-    if (!cell) return null
-    const fac = allFacultyList.find(f => f.id === cell.faculty_id)
-    return { acronym: cell.acronym || '???', faculty: fac?.full_name || 'Unassigned', is_lab: cell.is_lab }
+  const getCellDisplay = (day: number, period: number): CellData[] | null => {
+    return grid[`${day}-${period}`] || null
   }
 
   // ═══ RENDER ═══════════════════════════════════════════════
-  if (!canEdit) {
-    return (
-      <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
-        <CardContent className="py-16 text-center">
-          <ShieldAlert className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold">Access Restricted</h3>
-          <p className="text-sm text-muted-foreground mt-1">Only HODs, Admins, Principal, and Management can manage timetables.</p>
-        </CardContent>
-      </Card>
-    )
-  }
+  // We no longer block access entirely. Everyone sees the Schedule Hub (Step 1).
+  // Editing logic (canEdit) controls access to Steps 2-5.
+
+  const stepsList = canEdit 
+    ? ["Schedule Hub", "Subjects & Faculty", "Class Incharge", "Timetable Grid", "Submit"]
+    : ["Schedule Hub"]
 
   return (
     <div className="space-y-6">
       {/* ── Step Indicator ── */}
       <div className="flex items-center gap-2 print:hidden overflow-x-auto pb-2">
-        {["Header Info", "Subjects & Faculty", "Class Incharge", "Timetable Grid", "Submit"].map((s, i) => (
+        {stepsList.map((s, i) => (
           <React.Fragment key={i}>
             {i > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
             <button
@@ -534,9 +613,11 @@ export function TimetableManager() {
 
         {/* Right-side buttons */}
         <div className="ml-auto flex gap-2 shrink-0 print:hidden">
-          <Button variant="outline" size="sm" onClick={handleOpenSaved} disabled={loading}>
-            <FolderOpen className="h-4 w-4 mr-1" /> Saved
-          </Button>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={handleOpenSaved} disabled={loading}>
+              <FolderOpen className="h-4 w-4 mr-1" /> Saved
+            </Button>
+          )}
         </div>
       </div>
 
@@ -548,9 +629,9 @@ export function TimetableManager() {
             <CardDescription>Fill in the class details to begin timetable creation.{isHod && <span className="text-orange-600 font-semibold ml-1">(HOD: {profile?.dept} only)</span>}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 print:hidden">
               <div><Label className="text-xs mb-1 block">Department *</Label>
-                {isHod ? (
+                {(isHod && profile?.dept !== 'Admin') ? (
                   <Input value={profile?.dept || ''} disabled className="opacity-90 bg-muted cursor-not-allowed font-semibold h-10" />
                 ) : (
                   <Select value={meta.dept} onValueChange={v => setMeta(m => ({ ...m, dept: v }))}>
@@ -595,18 +676,33 @@ export function TimetableManager() {
                 <Input type="date" value={meta.effect_date} onChange={e => setMeta(m => ({ ...m, effect_date: e.target.value }))} />
               </div>
             </div>
-            <div className="flex justify-end mt-6">
-              <Button onClick={handleStep1Next} disabled={loading || !(isHod ? profile?.dept : meta.dept) || !meta.section}>
-                {loading ? <DotLoader className="mr-2" /> : null}
-                Next: Subjects & Faculty <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
+
+            {/* Read-only Schedule Hub Viewer embedded in Step 1 */}
+            <ScheduleHubViewer 
+              dept={meta.dept} 
+              year={meta.year} 
+              section={meta.section} 
+              semester={meta.semester} 
+              regulation={meta.regulation}
+              academic_year={meta.academic_year}
+              room={meta.room}
+              effect_date={meta.effect_date}
+            />
+
+            {canEdit && (
+              <div className="flex justify-end mt-6 print:hidden">
+                <Button onClick={handleStep1Next} disabled={loading || !(isHod && profile?.dept !== 'Admin' ? profile?.dept : meta.dept) || !meta.section}>
+                  {loading ? <DotLoader className="mr-2" /> : null}
+                  Edit Timetable <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
       {/* ═══ STEP 2: Subject-Faculty Mapping ═══ */}
-      {step === 2 && (
+      {(step === 2 && canEdit) && (
         <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> Subject & Faculty Mapping</CardTitle>
@@ -759,6 +855,22 @@ export function TimetableManager() {
                   )}
                 </div>
               </div>
+              <div>
+                <Label className="text-xs mb-1 block text-orange-600 dark:text-orange-500 font-semibold">Year Incharge (Optional)</Label>
+                <div className="flex gap-2">
+                  <Select value={yearIncharge} onValueChange={setYearIncharge}>
+                    <SelectTrigger className="flex-1 border-orange-200 dark:border-orange-900/50 focus:ring-orange-500"><SelectValue placeholder="Select Year Incharge" /></SelectTrigger>
+                    <SelectContent>
+                      {deptFacultyList.map(f => <SelectItem key={f.id} value={f.id}>{f.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {yearIncharge && (
+                    <Button variant="outline" size="icon" onClick={() => setYearIncharge("")} title="Clear Year Incharge" className="shrink-0 text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => setStep(2)}><ChevronLeft className="h-4 w-4 mr-1" /> Back</Button>
@@ -797,7 +909,8 @@ export function TimetableManager() {
 
           {/* Grid */}
           {mode && (
-            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden" id="printable-timetable">
+            <div className="flex flex-col xl:flex-row gap-6 items-start w-full transition-all">
+            <Card className="flex-1 min-w-0 border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] rounded-[1.5rem] overflow-hidden" id="printable-timetable">
               {/* Print header */}
               <div className="hidden print:block p-6 text-center border-b">
                 <h2 className="text-base font-bold uppercase tracking-wide">CLASS TIMETABLE</h2>
@@ -852,7 +965,7 @@ export function TimetableManager() {
                           const isActive = editingCell?.day === day.id && editingCell?.period === period.id
 
                           // Handle merged visualization for Lab subjects (spans 3 periods)
-                          if (display?.is_lab) {
+                          if (display && display.some(c => c.is_lab)) {
                             // Only render the td on the first period of the block
                             if (period.id === 2 || period.id === 3 || period.id === 5 || period.id === 6) {
                               return null
@@ -862,23 +975,32 @@ export function TimetableManager() {
                           return (
                             <React.Fragment key={`${day.id}-${period.id}`}>
                               <td
-                                colSpan={display?.is_lab ? 3 : 1}
+                                colSpan={display && display.some(c => c.is_lab) ? 3 : 1}
                                 className={cn(
                                   "border border-border p-1 min-h-[60px] cursor-pointer relative group transition-colors",
-                                  display?.is_lab ? "w-[39%]" : "w-[13%]",
-                                  display ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/40",
+                                  display && display.some(c => c.is_lab) ? "w-[39%]" : "w-[13%]",
+                                  display && display.length > 0 ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/40",
                                   isActive && "ring-2 ring-primary ring-inset bg-primary/10"
                                 )}
                                 onClick={() => handleCellClick(day.id, period.id)}
                               >
-                                {display ? (
-                                  <div className="flex flex-col items-center justify-center text-center p-0.5 min-h-[50px] w-full">
-                                    <span className="font-bold text-primary text-sm leading-tight flex items-center justify-center gap-1">
-                                      {display.acronym}
-                                    </span>
-                                    <span className="text-[10px] font-medium text-muted-foreground mt-0.5 truncate max-w-[95%] text-center">
-                                      {display.faculty.split(' ').pop()}
-                                    </span>
+                                {display && display.length > 0 ? (
+                                  <div className={cn("flex flex-col w-full h-full min-h-[50px] overflow-hidden", display.length > 1 ? "divide-y divide-border/40" : "")}>
+                                    {display.map((c, idx) => (
+                                      <div key={idx} className="flex-1 flex flex-col items-center justify-center text-center p-0.5 min-h-[50px] w-full">
+                                        <span className={cn("font-bold text-primary text-sm leading-tight flex items-center justify-center gap-1", c.is_lab && "text-base")}>
+                                          {c.acronym}
+                                        </span>
+                                        {c.batch && c.batch !== 'all' && (
+                                          <span className={cn(
+                                            "inline-block px-1.5 py-0.5 mt-0.5 rounded text-[9px] font-bold",
+                                            c.batch === 'B1' ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                                          )}>
+                                            Batch {c.batch}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
                                   </div>
                                 ) : (
                                   <div className="h-[50px] flex items-center justify-center text-muted-foreground/20 group-hover:text-muted-foreground/40 text-center w-full">
@@ -907,9 +1029,9 @@ export function TimetableManager() {
                         {DAYS.find(d => d.id === editingCell.day)?.name} — Period {PERIODS.find(p => p.id === editingCell.period)?.label}
                       </span>
                       <div className="flex gap-1">
-                        {grid[`${editingCell.day}-${editingCell.period}`] && (
+                        {(grid[`${editingCell.day}-${editingCell.period}`]?.length > 0) && (
                           <Button size="sm" variant="destructive" className="h-6 text-xs px-2" onClick={() => handleCellDelete(editingCell.day, editingCell.period)}>
-                            <Trash2 className="h-3 w-3 mr-1" />Remove
+                            <Trash2 className="h-3 w-3 mr-1" />Clear Slot
                           </Button>
                         )}
                         <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setEditingCell(null)}>
@@ -923,10 +1045,10 @@ export function TimetableManager() {
                         const hasClash = globalFacultyTimetables.some(
                           t => t.faculty_id === m.faculty_id && t.day_of_week === editingCell.day && t.period === editingCell.period
                         )
-                        const isSelected = grid[`${editingCell.day}-${editingCell.period}`]?.subject_id === m.subject_id
+                        const isSelected = grid[`${editingCell.day}-${editingCell.period}`]?.some(c => c.subject_id === m.subject_id)
 
                         return (
-                          <button key={m.subject_id} onClick={() => handleCellAssign(m.acronym)}
+                          <button key={m.subject_id} onClick={() => isSelected ? handleCellDelete(editingCell.day, editingCell.period, m.subject_id) : handleCellAssign(m.acronym)}
                             className={cn(
                               "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5",
                               isSelected
@@ -983,12 +1105,18 @@ export function TimetableManager() {
                     </tbody>
                   </table>
                   
-                  {/* Class Incharge line */}
-                  <div>
+                  {/* Class Incharge / Year Incharge lines */}
+                  <div className="mt-4 flex flex-col gap-1">
                     {(incharge1 || incharge2) && (
-                      <p className="mt-3 text-xs text-muted-foreground print:text-black">
+                      <p className="text-xs text-muted-foreground print:text-black">
                         <strong>Class I/C:</strong>{' '}
                         {[incharge1, incharge2].filter(Boolean).filter(id => id !== 'none').map(id => allFacultyList.find(f => f.id === id)?.full_name).filter(Boolean).join(' & ')}
+                      </p>
+                    )}
+                    {yearIncharge && yearIncharge !== 'none' && (
+                      <p className="text-xs text-muted-foreground print:text-black">
+                        <strong>Year I/C:</strong>{' '}
+                        {allFacultyList.find(f => f.id === yearIncharge)?.full_name || 'Unknown'}
                       </p>
                     )}
                   </div>
@@ -996,21 +1124,35 @@ export function TimetableManager() {
                   {/* Formal Signatures (Print Only) */}
                   <div className="hidden print:flex justify-between items-end mt-16 px-4">
                     <div className="text-center font-bold text-sm">
-                      <div className="mb-2 text-xs font-normal">
+                      <div className="mb-2 text-xs font-normal min-h-[16px]">
                         {[incharge1, incharge2].filter(Boolean).filter(id => id !== 'none').map(id => allFacultyList.find(f => f.id === id)?.full_name).filter(Boolean).join(' / ')}
                       </div>
                       <div className="border-t border-black pt-1 px-6">Class Incharge</div>
                     </div>
+                    {yearIncharge && yearIncharge !== 'none' && (
+                      <div className="text-center font-bold text-sm">
+                        <div className="mb-2 text-xs font-normal min-h-[16px]">
+                          {allFacultyList.find(f => f.id === yearIncharge)?.full_name}
+                        </div>
+                        <div className="border-t border-black pt-1 px-8">Year Incharge</div>
+                      </div>
+                    )}
                     <div className="text-center font-bold text-sm">
+                      <div className="mb-2 text-xs font-normal min-h-[16px]"></div>
                       <div className="border-t border-black pt-1 px-8">HOD</div>
                     </div>
                     <div className="text-center font-bold text-sm">
+                      <div className="mb-2 text-xs font-normal min-h-[16px]"></div>
                       <div className="border-t border-black pt-1 px-8">Principal</div>
                     </div>
                   </div>
                 </div>
               )}
             </Card>
+
+            {/* Faculty Availability Sidebar */}
+            <FacultyAvailabilityPanel mappings={mappings} grid={grid} globalFacultyTimetables={globalFacultyTimetables} />
+            </div>
           )}
         </>
       )}

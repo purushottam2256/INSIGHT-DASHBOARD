@@ -12,7 +12,7 @@ import SearchResults from '@/components/layout/SearchResults';
 const pageTitles: Record<string, { title: string; subtitle?: string }> = {
     '/dashboard': { title: 'Dashboard', subtitle: 'Overview & Analytics' },
     '/registration': { title: 'Registration', subtitle: 'Students & Faculty' },
-    '/timetable': { title: 'Timetable', subtitle: 'Schedule Management' },
+    '/timetable': { title: 'Schedule Hub', subtitle: 'Class Timetable Gallery' },
     '/attendance-manager': { title: 'Monthly Overview', subtitle: 'Track & Manage' },
     '/leaves': { title: 'Leave Manager', subtitle: 'Two-Stage Approvals' },
     '/compare': { title: 'Compare', subtitle: 'Analytics & Trends' },

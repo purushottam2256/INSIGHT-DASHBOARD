@@ -32,6 +32,7 @@ export interface TimetableEntry {
   effect_date?: string
   subjects?: { name: string; code: string; acronym?: string }
   faculty_name?: string
+  batch?: string
 }
 
 export interface SubjectFacultyMapping {
@@ -69,6 +70,7 @@ export interface SavedClassInfo {
   dept: string
   year: number
   section: string
+  semester?: number
   entry_count: number
 }
 
@@ -139,6 +141,28 @@ export function useTimetable() {
     }
   }
 
+  const fetchYearIncharge = useCallback(async (dept: string, year: number) => {
+    const { data, error } = await supabase
+      .from('class_incharges')
+      .select('faculty_id')
+      .eq('dept', dept).eq('year', year).eq('section', 'YEAR_INCHARGE')
+      .eq('is_active', true)
+      .single()
+    if (error && error.code !== 'PGRST116') console.error('fetchYearIncharge error:', error)
+    return data?.faculty_id || ""
+  }, [])
+
+  const saveYearIncharge = async (dept: string, year: number, facultyId: string) => {
+    await supabase.from('class_incharges').delete()
+      .eq('dept', dept).eq('year', year).eq('section', 'YEAR_INCHARGE')
+    if (facultyId) {
+      const { error } = await supabase.from('class_incharges').insert([{ 
+        faculty_id: facultyId, dept, year, section: 'YEAR_INCHARGE', is_active: true 
+      }])
+      if (error) throw error
+    }
+  }
+
   // ═══ TIMETABLE: Faculty-centric (mobile app / faculty view) ════
   const fetchTimetable = useCallback(async (facultyId: string) => {
     setLoading(true)
@@ -156,17 +180,24 @@ export function useTimetable() {
       ...e,
       subject_name: e.subjects?.name,
       subject_code: e.subjects?.code,
-      subject_acronym: e.subjects?.acronym || e.subjects?.code
+      subject_acronym: e.subjects?.acronym || e.subjects?.code,
+      batch: e.batch === 1 ? 'B1' : e.batch === 2 ? 'B2' : 'all'
     })) as any[]
   }, [])
 
   // ═══ TIMETABLE: Class-centric (dashboard) ═════════════════
-  const fetchTimetableByClass = useCallback(async (dept: string, year: number, section: string) => {
+  const fetchTimetableByClass = useCallback(async (dept: string, year: number, section: string, semester?: number) => {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('master_timetables')
       .select('*, subjects(name, code, acronym)')
       .eq('dept', dept).eq('year', year).eq('section', section)
+
+    if (semester) {
+      query = query.eq('semester', semester)
+    }
+
+    const { data, error } = await query
       .order('day_of_week').order('period')
     setLoading(false)
     if (error) { console.error('fetchTimetableByClass error:', error); return [] }
@@ -181,43 +212,46 @@ export function useTimetable() {
         subject_code: e.subjects?.code,
         subject_acronym: e.subjects?.acronym || e.subjects?.code,
         subject_name: e.subjects?.name,
+        batch: e.batch === 1 ? 'B1' : e.batch === 2 ? 'B2' : 'all'
       })) as any[]
     }
     return []
   }, [])
 
   const fetchSavedClassTimetables = useCallback(async (deptFilter?: string) => {
-    let query = supabase.from('master_timetables').select('dept, year, section')
+    let query = supabase.from('master_timetables').select('dept, year, section, semester')
     if (deptFilter && deptFilter !== 'All') query = query.eq('dept', deptFilter)
     const { data, error } = await query
     if (error) { console.error('fetchSavedClassTimetables error:', error); return [] }
 
     const map = new Map<string, SavedClassInfo>()
     for (const row of (data || [])) {
-      const key = `${row.dept}-${row.year}-${row.section}`
-      if (!map.has(key)) map.set(key, { dept: row.dept, year: row.year, section: row.section, entry_count: 0 })
+      const key = `${row.dept}-${row.year}-${row.section}-${row.semester || 1}` // default to 1 if null for backward compat
+      if (!map.has(key)) map.set(key, { dept: row.dept, year: row.year, section: row.section, semester: row.semester || 1, entry_count: 0 })
       map.get(key)!.entry_count++
     }
     return Array.from(map.values()).sort((a, b) =>
-      a.dept !== b.dept ? a.dept.localeCompare(b.dept) : a.year !== b.year ? a.year - b.year : a.section.localeCompare(b.section)
+      a.dept !== b.dept ? a.dept.localeCompare(b.dept) : a.year !== b.year ? a.year - b.year : a.semester !== b.semester ? (a.semester || 1) - (b.semester || 1) : a.section.localeCompare(b.section)
     )
   }, [])
 
-  // ═══ AUTO-GENERATE TIMETABLE ══════════════════════════════
+  // ═══ AUTO-GENERATE TIMETABLE (Deterministic + Backtracking) ═══
   /**
-   * Algorithm to auto-place subjects into a 6-day × 6-period grid.
+   * Professional-grade algorithm to auto-place subjects into a 6-day × 6-period grid.
    * Rules:
    * - No subject more than 2× per day
-   * - Labs = 3 consecutive periods, batch-aware (B1/B2 alternate)
+   * - Labs = 3 consecutive periods, batch-aware (B1/B2 can share a block)
    * - Faculty must not be double-booked at same day+period
-   * - Balanced distribution across the week
+   * - Deterministic: uses least-loaded-first heuristic instead of random
+   * - Backtracking: tries displacing already-placed subjects if stuck (max depth 3)
+   * - Returns { placed, unplaced } so UI can warn about failures
    */
   const autoGenerateTimetable = async (
     mappings: SubjectFacultyMapping[],
     classDept: string,
     classYear: number,
     classSection: string,
-  ) => {
+  ): Promise<{ placed: any[]; unplaced: string[] }> => {
     // Get ALL existing timetable entries (other classes) to check faculty availability
     const { data: allEntries } = await supabase
       .from('master_timetables')
@@ -237,134 +271,166 @@ export function useTimetable() {
       !busyMap.has(`${fid}-${day}-${period}`)
 
     // Build grid: 6 days × 6 periods
-    type CellEntry = { subject_id: string; faculty_id: string; acronym: string; is_lab?: boolean } | null
+    type CellEntry = { subject_id: string; faculty_id: string; acronym: string; is_lab?: boolean; batch?: string } | null
     const grid: CellEntry[][] = Array.from({ length: 6 }, () => Array(6).fill(null))
 
-    // Count subject appearances per day
+    // ─── Helpers ─────────────────────────────────────────────
     const daySubjectCount = (day: number, subId: string) =>
       grid[day].filter(c => c?.subject_id === subId).length
 
-    // Check if grid cell is free
     const isCellFree = (day: number, period: number) => grid[day][period] === null
 
-    // Separate labs and theory
+    // Get total assignments for a subject across the entire grid
+    const totalSubjectCount = (subId: string) =>
+      grid.flat().filter(c => c?.subject_id === subId).length
+
+    // Deterministic day ordering: sort by fewest occupied slots (least-loaded-first)
+    const getLeastLoadedDays = (): number[] => {
+      const dayCounts = Array.from({ length: 6 }, (_, d) => ({
+        day: d,
+        load: grid[d].filter(c => c !== null).length
+      }))
+      dayCounts.sort((a, b) => a.load - b.load)
+      return dayCounts.map(d => d.day)
+    }
+
+    // Track unplaced subjects
+    const unplacedSubjects: string[] = []
+
+    // ─── Separate labs and theory ────────────────────────────
     const labs = mappings.filter(m => m.is_lab)
     const theories = mappings.filter(m => !m.is_lab)
 
-    // Calculate how many periods each theory subject needs per week
-    // credits roughly maps to periods/week (3 credits = 3 periods, 4 credits = 4 periods)
+    // Credits → weekly periods
     const theorySlots: { mapping: SubjectFacultyMapping; remaining: number }[] = theories.map(m => ({
       mapping: m,
       remaining: Math.max(m.credits || 3, 1),
     }))
 
     // ─── STEP 1: Place labs (3 consecutive periods) ──────────
-    // Typically THU/FRI/SAT (days 3,4,5 = 0-indexed) for labs
-    const labDays = [3, 4, 5, 0, 1, 2] // prefer THU,FRI,SAT first
+    const labDayPreference = [3, 4, 5, 0, 1, 2] // prefer THU/FRI/SAT
     for (const lab of labs) {
       let placed = false
-      for (const day of labDays) {
+      for (const day of labDayPreference) {
         if (placed) break
-        // Try morning slots (periods 0,1,2) or afternoon (3,4,5)
         for (const startPeriod of [0, 3]) {
           if (startPeriod + 2 >= 6) continue
-          // Check 3 consecutive free
           const periodsOk = [startPeriod, startPeriod + 1, startPeriod + 2].every(p =>
             isCellFree(day, p) && isFacultyFree(lab.faculty_id, day + 1, p + 1)
           )
           if (periodsOk) {
             for (let p = startPeriod; p < startPeriod + 3; p++) {
-              grid[day][p] = { subject_id: lab.subject_id, faculty_id: lab.faculty_id, acronym: lab.acronym, is_lab: true }
+              grid[day][p] = { subject_id: lab.subject_id, faculty_id: lab.faculty_id, acronym: lab.acronym, is_lab: true, batch: lab.batch }
             }
             placed = true
             break
           }
         }
       }
+      if (!placed) unplacedSubjects.push(lab.acronym)
     }
 
-    // ─── STEP 2: Place theory subjects ───────────────────────
-    // Distribute evenly: iterate day-by-day, period-by-period  
-    let attempts = 0
-    const maxAttempts = 500
-    while (theorySlots.some(s => s.remaining > 0) && attempts < maxAttempts) {
-      attempts++
-      // Pick the subject with most remaining periods
-      theorySlots.sort((a, b) => b.remaining - a.remaining)
-      const slot = theorySlots.find(s => s.remaining > 0)
-      if (!slot) break
+    // ─── STEP 2: Place theory subjects (deterministic + backtracking) ───
+    const tryPlaceTheory = (m: SubjectFacultyMapping, depth: number): boolean => {
+      if (depth > 3) return false // max backtrack depth
 
-      const m = slot.mapping
-      let placed = false
-
-      // Try each day (shuffled to distribute evenly)
-      const dayOrder = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5)
+      const dayOrder = getLeastLoadedDays()
       for (const day of dayOrder) {
-        if (placed) break
-        // Max 2 per day
         if (daySubjectCount(day, m.subject_id) >= 2) continue
 
+        // Try free slots first
         for (let period = 0; period < 6; period++) {
           if (!isCellFree(day, period)) continue
           if (!isFacultyFree(m.faculty_id, day + 1, period + 1)) continue
 
           grid[day][period] = { subject_id: m.subject_id, faculty_id: m.faculty_id, acronym: m.acronym }
-          slot.remaining--
-          placed = true
-          break
+          return true
         }
       }
 
-      // If we couldn't place it, reduce remaining to avoid infinite loop
-      if (!placed) slot.remaining = 0
+      // Backtracking: try displacing an existing theory subject to make room
+      if (depth < 3) {
+        for (const day of dayOrder) {
+          if (daySubjectCount(day, m.subject_id) >= 2) continue
+
+          for (let period = 0; period < 6; period++) {
+            if (isCellFree(day, period)) continue // already tried free slots
+            if (!isFacultyFree(m.faculty_id, day + 1, period + 1)) continue
+
+            const existing = grid[day][period]
+            if (!existing || existing.is_lab) continue // don't displace labs
+
+            // Try to relocate the existing subject
+            grid[day][period] = null
+            const relocated = tryPlaceTheory(
+              { ...theories.find(t => t.subject_id === existing.subject_id)!, faculty_id: existing.faculty_id } as SubjectFacultyMapping,
+              depth + 1
+            )
+
+            if (relocated) {
+              grid[day][period] = { subject_id: m.subject_id, faculty_id: m.faculty_id, acronym: m.acronym }
+              return true
+            } else {
+              // Restore — backtrack failed
+              grid[day][period] = existing
+            }
+          }
+        }
+      }
+
+      return false
     }
 
-    // ─── STEP 3: Fill remaining empty slots ────────────────────
-    // If there are still empty slots, keep distributing theory subjects
+    // Sort subjects: most credits first (hardest to place)
+    theorySlots.sort((a, b) => b.remaining - a.remaining)
+
+    for (const slot of theorySlots) {
+      while (slot.remaining > 0) {
+        const placed = tryPlaceTheory(slot.mapping, 0)
+        if (placed) {
+          slot.remaining--
+        } else {
+          // Could not place remaining periods for this subject
+          for (let i = 0; i < slot.remaining; i++) {
+            unplacedSubjects.push(slot.mapping.acronym)
+          }
+          slot.remaining = 0
+        }
+      }
+    }
+
+    // ─── STEP 3: Fill remaining empty slots (balanced) ──────
     if (theories.length > 0) {
-      const emptySlots: { day: number, period: number }[] = []
       for (let d = 0; d < 6; d++) {
         for (let p = 0; p < 6; p++) {
-          if (isCellFree(d, p)) emptySlots.push({ day: d, period: p })
-        }
-      }
+          if (!isCellFree(d, p)) continue
 
-      for (const slot of emptySlots) {
-        // Find theory subjects that are available and haven't exceeded 2 periods/day
-        let validTheories = theories.filter(m =>
-          isFacultyFree(m.faculty_id, slot.day + 1, slot.period + 1) &&
-          daySubjectCount(slot.day, m.subject_id) < 2
-        )
-
-        // If none strictly valid, relax the 2 periods/day constraint
-        if (validTheories.length === 0) {
-          validTheories = theories.filter(m =>
-            isFacultyFree(m.faculty_id, slot.day + 1, slot.period + 1)
+          // Find placeable theory subjects, sorted by fewest total assignments
+          let candidates = theories.filter(m =>
+            isFacultyFree(m.faculty_id, d + 1, p + 1) &&
+            daySubjectCount(d, m.subject_id) < 2
           )
-        }
-
-        if (validTheories.length > 0) {
-          // Sort to pick subjects with fewer total assignments to balance it out
-          validTheories.sort((a, b) => {
-            const sumA = grid.flat().filter(c => c?.subject_id === a.subject_id).length
-            const sumB = grid.flat().filter(c => c?.subject_id === b.subject_id).length
-            return sumA - sumB
-          })
-          
-          const m = validTheories[0]
-          grid[slot.day][slot.period] = { subject_id: m.subject_id, faculty_id: m.faculty_id, acronym: m.acronym }
+          if (candidates.length === 0) {
+            candidates = theories.filter(m =>
+              isFacultyFree(m.faculty_id, d + 1, p + 1)
+            )
+          }
+          if (candidates.length > 0) {
+            candidates.sort((a, b) => totalSubjectCount(a.subject_id) - totalSubjectCount(b.subject_id))
+            const m = candidates[0]
+            grid[d][p] = { subject_id: m.subject_id, faculty_id: m.faculty_id, acronym: m.acronym }
+          }
         }
       }
     }
 
-    // Convert internal grid to API return format
-    const results = []
+    // ─── Convert to API format ──────────────────────────────
+    const placed = []
     for (let day = 0; day < 6; day++) {
       for (let period = 0; period < 6; period++) {
         const c = grid[day][period]
         if (c) {
-          // day+1 to match 1-indexed days, period+1 for 1-indexed periods
-          results.push({
+          placed.push({
             day_of_week: day + 1,
             period: period + 1,
             subject_id: c.subject_id,
@@ -376,12 +442,12 @@ export function useTimetable() {
       }
     }
 
-    return results
+    return { placed, unplaced: unplacedSubjects }
   }
 
   // ═══ CROSS-CHECK VALIDATION ═══════════════════════════════
   const crossCheckValidation = async (
-    entries: { day_of_week: number; period: number; subject_id: string; faculty_id: string }[],
+    entries: { day_of_week: number; period: number; subject_id: string; faculty_id: string; is_lab?: boolean }[],
     classDept: string, classYear: number, classSection: string,
   ): Promise<ConflictResult[]> => {
     const conflicts: ConflictResult[] = []
@@ -413,17 +479,28 @@ export function useTimetable() {
     }
 
     // Check 2: Faculty overload (>5 periods/day)
-    const facDayCounts = new Map<string, number>()
+    // Lab = 1 class count (we group periods of the same faculty & subject & day)
+    const facDaySessions = new Map<string, Set<string>>()
     for (const entry of entries) {
       const key = `${entry.faculty_id}-${entry.day_of_week}`
-      facDayCounts.set(key, (facDayCounts.get(key) || 0) + 1)
+      if (!facDaySessions.has(key)) facDaySessions.set(key, new Set())
+      
+      // If it's a lab, we count the subject + day as one session. 
+      // If it's theory, we just count it as individual periods.
+      if (entry.is_lab) {
+        facDaySessions.get(key)!.add(`lab-${entry.subject_id}`)
+      } else {
+        facDaySessions.get(key)!.add(`theory-${entry.subject_id}-${entry.period}`)
+      }
     }
-    for (const [key, count] of facDayCounts) {
-      if (count > 5) {
+    
+    for (const [key, sessionSet] of facDaySessions) {
+      const sessionCount = sessionSet.size
+      if (sessionCount > 5) {
         const [fid, day] = key.split('-')
         conflicts.push({
           type: 'overload',
-          message: `${facMap.get(fid) || 'Faculty'} has ${count} periods on this day (max recommended: 5)`,
+          message: `${facMap.get(fid) || 'Faculty'} has ${sessionCount} classes/labs on this day (max recommended: 5)`,
           day: parseInt(day), period: 0, severity: 'warning',
         })
       }
@@ -434,13 +511,20 @@ export function useTimetable() {
 
   // ═══ SAVE BULK TIMETABLE ══════════════════════════════════
   const saveBulkTimetable = async (
-    entries: { day_of_week: number; period: number; subject_id: string; faculty_id: string }[],
+    entries: { day_of_week: number; period: number; subject_id: string; faculty_id: string; batch?: string }[],
     meta: ClassMetadata,
   ) => {
-    // Delete existing entries for this class
-    const { error: delErr } = await supabase
+    // Delete existing entries for this class and semester
+    let deleteQuery = supabase
       .from('master_timetables').delete()
       .eq('dept', meta.dept).eq('year', meta.year).eq('section', meta.section)
+    
+    // Support backward compatibility if meta.semester is missing
+    if (meta.semester) {
+      deleteQuery = deleteQuery.eq('semester', meta.semester)
+    }
+      
+    const { error: delErr } = await deleteQuery
     if (delErr) throw delErr
 
     const DAYS_MAP = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -475,6 +559,7 @@ export function useTimetable() {
         regulation: meta.regulation,
         academic_year: meta.academic_year,
         room: meta.room,
+        batch: e.batch === 'B1' ? 1 : e.batch === 'B2' ? 2 : null,
         effect_date: meta.effect_date || new Date().toISOString().split('T')[0],
       }
     })
@@ -534,6 +619,7 @@ export function useTimetable() {
     loading,
     fetchSubjects, fetchSubjectsByClass, addSubject, updateSubject, deleteSubject,
     fetchClassIncharges, saveClassIncharges,
+    fetchYearIncharge, saveYearIncharge,
     fetchTimetable, fetchTimetableByClass, fetchSavedClassTimetables,
     autoGenerateTimetable,
     saveTimetableEntry, saveBulkTimetable,

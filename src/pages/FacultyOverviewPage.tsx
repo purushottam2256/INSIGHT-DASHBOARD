@@ -16,7 +16,7 @@ interface FacultyDetail {
   mobile: string | null; avatar_url: string | null;
 }
 
-interface TimetableEntry { day_of_week: number; period: number; subjects: { name: string; code: string } | null; dept: string; year: number; section: string; }
+interface TimetableEntry { day_of_week: number; period: number; subjects: { name: string; code: string; is_lab?: boolean } | null; dept: string; year: number; section: string; }
 
 interface AttendancePerf {
   total_sessions: number;
@@ -62,7 +62,7 @@ const FacultyOverviewPage = () => {
   }
 
   const loadTimetable = async (facultyId: string) => {
-    const { data } = await supabase.from('master_timetables').select('day_of_week, period, dept, year, section, subjects(name, code)').eq('faculty_id', facultyId)
+    const { data } = await supabase.from('master_timetables').select('day_of_week, period, dept, year, section, subjects(name, code, is_lab)').eq('faculty_id', facultyId)
     setTimetable((data as any) || [])
   }
 
@@ -150,9 +150,35 @@ const FacultyOverviewPage = () => {
   }
 
   // Computed stats
-  const workingDays = new Set(timetable.map(t => t.day_of_week)).size
+  let classCount = 0;
+  let labCount = 0;
+  
+  const sessionsByDay = new Map<number, Set<string>>()
+  for (const t of timetable) {
+    if (!sessionsByDay.has(t.day_of_week)) sessionsByDay.set(t.day_of_week, new Set());
+    const isLab = t.subjects?.is_lab;
+    if (isLab) {
+      // Group lab by day + subject + class
+      sessionsByDay.get(t.day_of_week)!.add(`lab-${t.dept}-${t.year}-${t.section}-${t.subjects?.code}`);
+    } else {
+      // Theory classes are individual periods
+      sessionsByDay.get(t.day_of_week)!.add(`theory-${t.dept}-${t.year}-${t.section}-${t.subjects?.code}-${t.period}`);
+    }
+  }
+
+  for (const sessions of sessionsByDay.values()) {
+    for (const s of sessions) {
+      if (s.startsWith('lab-')) labCount++;
+      else classCount++;
+    }
+  }
+
+  const workingDays = sessionsByDay.size
   const uniqueClasses = new Set(timetable.map(t => `${t.dept}-${t.year}-${t.section}`)).size
-  const avgDailyLoad = workingDays > 0 ? (timetable.length / workingDays).toFixed(1) : '0'
+  
+  const totalSessions = classCount + labCount;
+  const avgDailyLoad = workingDays > 0 ? (totalSessions / workingDays).toFixed(1) : '0'
+  const weeklyLoadString = labCount > 0 ? `${classCount} Classes, ${labCount} Labs` : `${classCount} Classes`
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -251,7 +277,7 @@ const FacultyOverviewPage = () => {
                 {/* Stats Grid — Schedule + Performance */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
                   {[
-                    { label: 'Weekly Classes', value: timetable.length, icon: Clock, color: 'text-blue-500', bg: 'from-blue-500/10 to-blue-500/5', ring: 'ring-blue-500/20' },
+                    { label: 'Weekly Workload', value: weeklyLoadString, icon: Clock, color: 'text-blue-500', bg: 'from-blue-500/10 to-blue-500/5', ring: 'ring-blue-500/20' },
                     { label: 'Working Days', value: workingDays, icon: Calendar, color: 'text-emerald-500', bg: 'from-emerald-500/10 to-emerald-500/5', ring: 'ring-emerald-500/20' },
                     { label: 'Classes Taught', value: uniqueClasses, icon: Users, color: 'text-amber-500', bg: 'from-amber-500/10 to-amber-500/5', ring: 'ring-amber-500/20' },
                     { label: 'Avg Daily Load', value: avgDailyLoad, icon: Briefcase, color: 'text-purple-500', bg: 'from-purple-500/10 to-purple-500/5', ring: 'ring-purple-500/20' },
